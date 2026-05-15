@@ -1,6 +1,7 @@
-importScripts("config.js", "llm.js", "browser.js", "vendor/qrcode-generator.js", "channels/wechat.js", "tools.js", "agent.js");
+importScripts("config.js", "i18n.js", "llm.js", "browser.js", "vendor/qrcode-generator.js", "channels/wechat.js", "tools.js", "agent.js");
 
 const APP_CONFIG = globalThis.OnecaiConfig || {};
+const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
 const STORAGE_CONFIG = APP_CONFIG.storage || {};
 const CONTENT_CONFIG = APP_CONFIG.content || {};
 const BACKGROUND_CONFIG = APP_CONFIG.background || {};
@@ -145,7 +146,7 @@ async function setActionToggleBadge(tabId, enabled) {
   });
   await chrome.action.setTitle({
     tabId,
-    title: enabled ? "onecai：点击隐藏悬浮按钮" : "onecai：点击显示悬浮按钮"
+    title: enabled ? t("action.hide") : t("action.show")
   });
 }
 
@@ -254,7 +255,7 @@ function createContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: SEND_SELECTION_MENU_ID,
-      title: "发送选中内容到 onecai",
+      title: t("context.sendSelection"),
       contexts: ["selection"]
     });
   });
@@ -322,7 +323,7 @@ async function runWechatLoginWait(reason = "wait") {
     if (result?.connected || (config?.enabled && config?.token)) {
       await sendChannelConfigStatusToTabs("wechat", {
         status: "confirmed",
-        message: "微信频道已配置完成"
+        message: t("channel.wechatConfigured")
       });
       kickChannelPolling(CHANNEL_CONFIRMED_ACTIVE_POLL_DURATION_MS);
       return true;
@@ -722,7 +723,7 @@ async function handleWechatIncomingMessage(update) {
     const channelHistory = [
       {
         role: "system",
-        content: "你正在通过微信通道响应用户。微信通道需要控制浏览器打开网页时，必须使用 browser_control 的 new_tab 动作打开新标签页，不要使用 navigate 覆盖当前活动标签页。"
+        content: t("agent.wechatInstruction")
       },
       ...history
     ];
@@ -752,16 +753,16 @@ async function handleWechatIncomingMessage(update) {
         error: error?.message || String(error),
         stack: error?.stack || ""
       });
-      reply = `处理失败：${error?.message || String(error)}`;
+      reply = t("agent.processFailed", { error: error?.message || String(error) });
     }
     const mediaArtifacts = globalThis.OnecaiBrowser?.drainArtifacts
       ? OnecaiBrowser.drainArtifacts({ scope: `wechat:${normalized.fromUser}` })
       : [];
     if (!reply && mediaArtifacts.length) {
-      reply = "已完成。";
+      reply = t("agent.done");
     }
     if (!reply) {
-      reply = "模型没有返回可展示内容，请稍后再试。";
+      reply = t("agent.emptyReply");
     }
 
     await setChannelHistory("wechat", normalized.fromUser, [
@@ -1384,7 +1385,7 @@ chrome.runtime.onConnect.addListener((port) => {
       if (!disconnected) {
         const rawError = error?.message || String(error);
         const isAbort = error?.name === "AbortError" || /aborted|body stream buffer/i.test(rawError);
-        port.postMessage({ type: "error", error: isAbort ? "LLM 流式响应已中断，请重试。" : rawError });
+        port.postMessage({ type: "error", error: isAbort ? t("llm.interrupted") : rawError });
         port.disconnect();
       }
     });

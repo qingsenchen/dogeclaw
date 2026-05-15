@@ -46,6 +46,7 @@ The project is designed to run locally as an unpacked extension. It does not shi
 - Weather lookup tool
 - Right-click menu for sending selected text to onecai
 - Optional WeChat channel login, polling, message handling, and media support
+- Built-in English, Simplified Chinese, and Japanese localization
 
 ## Quick Start
 
@@ -130,7 +131,9 @@ No API key is included in this repository. Store only your own key locally throu
 ```text
 .
 ├── manifest.json              # Chrome Manifest V3 extension manifest
+├── _locales/                  # Chrome WebExtension locale messages
 ├── config.js                  # Runtime defaults and storage keys
+├── i18n.js                    # Runtime localization dictionaries and helpers
 ├── background.js              # Service worker, agent routing, tools, channels
 ├── content.js                 # In-page assistant UI and page bridge
 ├── ui.js                      # Shared UI rendering helpers

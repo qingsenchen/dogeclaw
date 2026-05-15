@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "onecai",
+  "default_locale": "en",
   "version": "1.0.0",
-  "description": "onecai（汪柴）是一个带桌面宠物的浏览器智能助手，支持网页对话、选中文本发送、工具调用和浏览器控制。",
+  "description": "__MSG_appDescription__",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -24,7 +25,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "onecai 设置",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"
@@ -37,6 +38,7 @@
       ],
       "js": [
         "config.js",
+        "i18n.js",
         "pet.js",
         "ui.js",
         "content.js"

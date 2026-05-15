@@ -1,4 +1,16 @@
 (function () {
+  const I18N = globalThis.OnecaiI18n || { t: (key, params) => {
+    const fallback = {
+      "image.alt": "Image"
+    };
+    let value = fallback[key] || key;
+    Object.entries(params || {}).forEach(([name, replacement]) => {
+      value = value.replaceAll(`{${name}}`, String(replacement ?? ""));
+    });
+    return value;
+  } };
+  const t = (key, params) => I18N.t(key, params);
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -18,12 +30,12 @@
 
     text = text
       .replace(/!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[^)]+)\)/g, (_match, label, src) => {
-        const alt = label ? escapeHtml(label) : "图片";
+        const alt = label ? escapeHtml(label) : t("image.alt");
         return `<img class="pig-chat-image" src="${src}" alt="${alt}" loading="lazy">`;
       })
       .replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, src) => {
         const safeSrc = src.replace(/&amp;/g, "&");
-        const alt = label ? escapeHtml(label) : "图片";
+        const alt = label ? escapeHtml(label) : t("image.alt");
         return `<img class="pig-chat-image" src="${safeSrc}" alt="${alt}" loading="lazy">`;
       })
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, href) => {
@@ -187,7 +199,7 @@
 
     const title = document.createElement("div");
     title.className = "pig-config-title";
-    title.textContent = "配置 LLM Provider";
+    title.textContent = t("llm.configTitle");
 
     const apiBaseInput = createInput({
       className: "pig-config-input",
@@ -212,7 +224,7 @@
     const apiKeyInput = createInput({
       className: "pig-config-input",
       type: "password",
-      placeholder: "留空使用当前默认 Key",
+      placeholder: t("llm.apiKeyPlaceholder"),
       value: state.llmConfig.values.apiKey,
       onInput: (value) => {
         state.llmConfig.values.apiKey = value;
@@ -230,7 +242,7 @@
     const saveButton = document.createElement("button");
     saveButton.className = "pig-config-button is-primary";
     saveButton.type = "submit";
-    saveButton.textContent = state.llmConfig.saving ? "保存中" : "保存";
+    saveButton.textContent = state.llmConfig.saving ? t("llm.saving") : t("llm.save");
     saveButton.disabled = state.llmConfig.saving;
 
     actions.append(saveButton);
@@ -263,7 +275,7 @@
 
     const title = document.createElement("div");
     title.className = "pig-config-title";
-    title.textContent = state.channelConfig.channel === "wechat" ? "配置微信频道" : "配置频道";
+    title.textContent = state.channelConfig.channel === "wechat" ? t("channel.wechatConfigTitle") : t("channel.configTitle");
 
     const body = document.createElement("div");
     body.className = "pig-channel-config-body";
@@ -272,7 +284,7 @@
     const login = state.channelConfig.login || {};
     const status = document.createElement("div");
     status.className = "pig-channel-status";
-    status.textContent = config.enabled ? "当前状态：已配置" : "当前状态：未配置";
+    status.textContent = config.enabled ? t("channel.configured") : t("channel.notConfigured");
 
     body.append(status);
 
@@ -280,13 +292,13 @@
       const qrWrap = document.createElement("div");
       qrWrap.className = "pig-channel-qr";
       const img = document.createElement("img");
-      img.alt = "微信扫码配置二维码";
+      img.alt = t("channel.qrAlt");
       img.src = login.qrcodeUrl;
       img.addEventListener("error", () => {
         img.hidden = true;
         const fallback = document.createElement("div");
         fallback.className = "pig-channel-qr-fallback";
-        fallback.textContent = "二维码图片加载失败，请重新获取二维码。";
+        fallback.textContent = t("channel.qrFailed");
         qrWrap.append(fallback);
       }, { once: true });
       qrWrap.append(img);
@@ -294,13 +306,13 @@
     } else if (state.channelConfig.loading) {
       const loading = document.createElement("div");
       loading.className = "pig-channel-hint";
-      loading.textContent = "正在获取二维码...";
+      loading.textContent = t("channel.loadingQr");
       body.append(loading);
     }
 
     const hint = document.createElement("div");
     hint.className = "pig-channel-hint";
-    hint.textContent = login.message || "点击获取二维码，然后使用微信扫码完成频道授权。";
+    hint.textContent = login.message || t("channel.hint");
     body.append(hint);
 
     if (state.channelConfig.error) {
@@ -316,20 +328,20 @@
     const closeButton = document.createElement("button");
     closeButton.className = "pig-config-button";
     closeButton.type = "button";
-    closeButton.textContent = "关闭";
+    closeButton.textContent = t("channel.close");
     closeButton.addEventListener("click", () => onClose?.());
 
     const startButton = document.createElement("button");
     startButton.className = "pig-config-button is-primary";
     startButton.type = "button";
-    startButton.textContent = login.qrcodeUrl ? "重新获取" : "获取二维码";
+    startButton.textContent = login.qrcodeUrl ? t("channel.refreshQr") : t("channel.getQr");
     startButton.disabled = state.channelConfig.loading;
     startButton.addEventListener("click", () => onStart?.());
 
     const checkButton = document.createElement("button");
     checkButton.className = "pig-config-button is-primary";
     checkButton.type = "button";
-    checkButton.textContent = "检查扫码";
+    checkButton.textContent = t("channel.checkQr");
     checkButton.disabled = state.channelConfig.loading || !login.qrcode;
     checkButton.addEventListener("click", () => onCheck?.());
 

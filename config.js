@@ -20,7 +20,7 @@
       rootId: "onecai-root",
       legacyRootIds: ["page-image-gallery-root"],
       styleId: "onecai-style",
-      scriptFiles: ["config.js", "pet.js", "ui.js", "content.js"],
+      scriptFiles: ["config.js", "i18n.js", "pet.js", "ui.js", "content.js"],
       maxHoverMessages: 6,
       mountWatchdogIntervalMs: 1000,
       positionKeyPrefix: "onecai-position:"
@@ -73,7 +73,7 @@
         model: "Qwen3.6-27B",
         apiBase: "https://ai.gitee.com/v1",
         apiKey: "",
-        systemPrompt: "你是 onecai 浏览器扩展里的小宠物助手。用中文回复，语气温和、简短、有陪伴感。不要提到自己是模型。"
+        systemPrompt: ""
       }
     },
     wechat: {

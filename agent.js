@@ -1,5 +1,6 @@
 (function () {
   const AGENT_CONFIG = globalThis.OnecaiConfig?.agent || {};
+  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
   const DEFAULT_MAX_ITERATIONS = AGENT_CONFIG.maxIterations || 20;
   const DEFAULT_MAX_MESSAGES = AGENT_CONFIG.maxMessages || 20;
   const DEFAULT_MAX_CONTENT_LENGTH = AGENT_CONFIG.maxContentLength || 8192;
@@ -112,14 +113,14 @@
   function addToolContinuation(context) {
     context.add({
       role: "user",
-      content: "请根据刚才的工具执行结果继续完成用户请求，并给出简洁回复。"
+      content: t("agent.continueAfterTool")
     });
   }
 
   function addEmptyReplyContinuation(context) {
     context.add({
       role: "user",
-      content: "上一轮没有返回可展示内容。请给出最终回复；如果还需要工具，请继续调用工具。"
+      content: t("agent.noDisplayContent")
     });
   }
 

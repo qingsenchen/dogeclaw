@@ -1,4 +1,5 @@
 (function () {
+  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
   const PET_MOODS = {
     IDLE: "idle",
     HAPPY: "happy",
@@ -116,16 +117,16 @@
       [PET_MOODS.ANGRY]: PET_FACES.ANGRY
     };
     const labelMap = {
-      [PET_MOODS.IDLE]: ["摸摸我", "我在这儿", "点开图册"],
-      [PET_MOODS.HAPPY]: ["好开心", "喜欢你", "汪呜"],
-      [PET_MOODS.CURIOUS]: ["发现图片了", "让我看看", "咦？"],
-      [PET_MOODS.NEEDY]: ["点我一下", "陪我玩嘛", "看看成果"],
-      [PET_MOODS.SLEEPY]: ["先眯一会", "有点困", "慢慢来"],
-      [PET_MOODS.SHY]: ["会害羞啦", "别一直盯着我", "唔..."],
-      [PET_MOODS.EXCITED]: ["抓到好多", "冲呀", "好耶"],
-      [PET_MOODS.SAD]: ["还没理我", "我有点委屈", "呜..."],
-      [PET_MOODS.SURPRISED]: ["呀！", "发生什么了", "诶？"],
-      [PET_MOODS.ANGRY]: ["哼！", "不开心", "汪！"]
+      [PET_MOODS.IDLE]: [t("pet.idle.0"), t("pet.idle.1"), t("pet.idle.2")],
+      [PET_MOODS.HAPPY]: [t("pet.happy.0"), t("pet.happy.1"), t("pet.happy.2")],
+      [PET_MOODS.CURIOUS]: [t("pet.curious.0"), t("pet.curious.1"), t("pet.curious.2")],
+      [PET_MOODS.NEEDY]: [t("pet.needy.0"), t("pet.needy.1"), t("pet.needy.2")],
+      [PET_MOODS.SLEEPY]: [t("pet.sleepy.0"), t("pet.sleepy.1"), t("pet.sleepy.2")],
+      [PET_MOODS.SHY]: [t("pet.shy.0"), t("pet.shy.1"), t("pet.shy.2")],
+      [PET_MOODS.EXCITED]: [t("pet.excited.0"), t("pet.excited.1"), t("pet.excited.2")],
+      [PET_MOODS.SAD]: [t("pet.sad.0"), t("pet.sad.1"), t("pet.sad.2")],
+      [PET_MOODS.SURPRISED]: [t("pet.surprised.0"), t("pet.surprised.1"), t("pet.surprised.2")],
+      [PET_MOODS.ANGRY]: [t("pet.angry.0"), t("pet.angry.1"), t("pet.angry.2")]
     };
     const moodActions = {
       [PET_MOODS.IDLE]: [PET_ACTIONS.BLINK, PET_ACTIONS.SNIFF, PET_ACTIONS.LOOK_LEFT, PET_ACTIONS.LOOK_RIGHT],

@@ -46,6 +46,7 @@ onecai、別名 汪柴 は、Chrome Manifest V3 ベースのブラウザ AI ア�
 - 天気検索ツール
 - 選択テキストを onecai に送る右クリックメニュー
 - 任意の WeChat チャンネルログイン、ポーリング、メッセージ処理、メディア対応
+- English、簡体中文、日本語のローカライズを内蔵
 
 ## Quick Start
 
@@ -130,7 +131,9 @@ onecai に送信した内容、入力メッセージ、選択テキスト、ペ�
 ```text
 .
 ├── manifest.json              # Chrome Manifest V3 extension manifest
+├── _locales/                  # Chrome WebExtension locale messages
 ├── config.js                  # Runtime defaults and storage keys
+├── i18n.js                    # Runtime localization dictionaries and helpers
 ├── background.js              # Service worker, agent routing, tools, channels
 ├── content.js                 # In-page assistant UI and page bridge
 ├── ui.js                      # Shared UI rendering helpers

@@ -46,6 +46,7 @@ onecai，也叫汪柴，是一个基于 Chrome Manifest V3 的浏览器 AI 助�
 - 支持天气查询工具
 - 支持通过右键菜单把选中文本发送给 onecai
 - 可选的微信频道登录、轮询、消息和媒体处理
+- 内置英文、简体中文和日文界面本地化
 
 ## 快速开始
 
@@ -130,7 +131,9 @@ onecai 会请求以下 Chrome 扩展权限：
 ```text
 .
 ├── manifest.json              # Chrome Manifest V3 扩展清单
+├── _locales/                  # Chrome WebExtension 本地化消息
 ├── config.js                  # 运行时默认值和存储 Key
+├── i18n.js                    # 运行时本地化字典和辅助函数
 ├── background.js              # Service worker、agent 路由、工具和频道
 ├── content.js                 # 页面内助手 UI 和页面桥接
 ├── ui.js                      # 共享 UI 渲染辅助

@@ -1,4 +1,5 @@
 (function () {
+  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
   const CONFIG = globalThis.OnecaiConfig || {};
   const WECHAT_CONFIG = CONFIG.wechat || {};
   const CDN_BASE_URL = WECHAT_CONFIG.cdnBaseUrl || "https://novac2c.cdn.weixin.qq.com/c2c";
@@ -917,6 +918,7 @@
 })();
 
 (function () {
+  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
   const CONFIG = globalThis.OnecaiConfig || {};
   const STORAGE_CONFIG = CONFIG.storage || {};
   const WECHAT_CONFIG = CONFIG.wechat || {};
@@ -1039,8 +1041,8 @@
       cellSize: 6,
       margin: 18,
       scalable: true,
-      title: "微信扫码配置二维码",
-      alt: "微信扫码配置二维码"
+      title: t("channel.qrAlt"),
+      alt: t("channel.qrAlt")
     });
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
@@ -1312,7 +1314,7 @@
       currentApiBaseUrl: FIXED_QR_BASE_URL,
       status: "pending",
       refreshCount: 1,
-      message: "二维码已在配置卡片中展示，请使用微信扫码完成频道授权",
+      message: t("channel.hint"),
       startedAt: Date.now()
     });
   }
@@ -1329,7 +1331,7 @@
         qrcodeImgContent: "",
         currentApiBaseUrl: "",
         status: "expired",
-        message: "二维码已过期，请重新生成。"
+        message: t("channel.qrExpired")
       });
     }
 
@@ -1357,7 +1359,7 @@
       return setLoginState({
         status,
         currentApiBaseUrl: `https://${payload.redirect_host}`,
-        message: "已扫码，正在切换微信登录节点",
+        message: t("channel.redirecting"),
         lastStatusPayload: {
           status,
           hasBotToken: Boolean(payload.bot_token),
@@ -1370,7 +1372,7 @@
     if (status === "expired") {
       return setLoginState({
         status,
-        message: "二维码已过期，请重新获取"
+        message: t("channel.qrExpired")
       });
     }
 
@@ -1386,7 +1388,7 @@
       await setState({ getUpdatesBuf: "" });
       return setLoginState({
         status: "confirmed",
-        message: "微信频道已配置完成",
+        message: t("channel.wechatConfigured"),
         lastStatusPayload: {
           status,
           hasBotToken: Boolean(payload.bot_token),
@@ -1398,7 +1400,7 @@
 
     return setLoginState({
       status: String(status || "pending"),
-      message: message || (status === "scaned" ? "已扫码，请在微信中继续确认" : "等待扫码确认"),
+      message: message || (status === "scaned" ? t("channel.scanned") : t("channel.waitingScan")),
       lastStatusPayload: {
         status,
         hasBotToken: Boolean(payload.bot_token),
@@ -1414,7 +1416,7 @@
       return {
         connected: false,
         status: login.status || "",
-        message: "当前没有进行中的登录，请先发起登录。"
+        message: t("channel.noLogin")
       };
     }
     if (!isLoginFresh(login)) {
@@ -1424,12 +1426,12 @@
         qrcodeImgContent: "",
         currentApiBaseUrl: "",
         status: "expired",
-        message: "二维码已过期，请重新生成。"
+        message: t("channel.qrExpired")
       });
       return {
         connected: false,
         status: "expired",
-        message: "二维码已过期，请重新生成。"
+        message: t("channel.qrExpired")
       };
     }
 
@@ -1448,7 +1450,7 @@
           status: "confirmed",
           accountId: config.accountId,
           baseUrl: config.apiBase,
-          message: "微信频道已配置完成"
+          message: t("channel.wechatConfigured")
         };
       }
 
@@ -1458,7 +1460,7 @@
           return {
             connected: false,
             status: "expired",
-            message: "登录超时：二维码多次过期，请重新开始登录流程。"
+            message: t("channel.loginExpired")
           };
         }
         const next = await startLogin();
@@ -1472,7 +1474,7 @@
     return {
       connected: false,
       status: "timeout",
-      message: "登录超时，请重试。"
+      message: t("channel.loginTimeout")
     };
   }
 

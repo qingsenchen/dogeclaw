@@ -14,6 +14,7 @@
   const FLOATING_BUTTON_COMPACT_WIDTH = 132;
   const FLOATING_BUTTON_EDGE_PADDING = 8;
   const DRAG_START_THRESHOLD = 4;
+  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
 
   [ROOT_ID, ...(CONTENT_CONFIG.legacyRootIds || [])].forEach((id) => {
     const existingRoot = document.getElementById(id);
@@ -364,7 +365,7 @@
         if (message?.type === "onecaiToolArtifact" && message.artifact?.type === "image") {
           const dataUrl = String(message.artifact.dataUrl || "");
           if (dataUrl.startsWith("data:image/")) {
-            const title = String(message.artifact.title || "页面截图").replace(/[\]\n\r]/g, " ").trim() || "页面截图";
+            const title = String(message.artifact.title || "screenshot").replace(/[\]\n\r]/g, " ").trim() || "screenshot";
             addHoverMessage(`![${title}](${dataUrl})`, "left", { includeInHistory: false });
             setChatVisible(true);
             sendResponse?.({ ok: true });
@@ -415,7 +416,7 @@
             refreshChannelConfig(message.channel).catch(() => null);
             stopChannelAutoCheck();
             closeConfigPanel("channel");
-            addHoverMessage("微信频道已配置完成。", "left");
+            addHoverMessage(t("channel.wechatConfigured"), "left");
             renderHoverMessages();
             scheduleSync();
           }
@@ -560,24 +561,24 @@
   function getToolStepText(step) {
     const calls = Array.isArray(step?.calls) ? step.calls : [];
     const firstCall = calls[0] || {};
-    const toolName = firstCall.name || "工具";
+    const toolName = firstCall.name || t("tool.generic");
     const args = firstCall.arguments || {};
 
     if (toolName === "get_weather") {
-      return `正在查询天气：${args.location || "目标地点"}...`;
+      return t("tool.weather", { location: args.location || t("tool.weatherTarget") });
     }
 
     if (toolName === "browser_control") {
       const action = args.action ? ` ${args.action}` : "";
-      return `正在控制浏览器${action}...`;
+      return t("tool.browser", { action });
     }
 
     if (toolName === "system_config") {
       const action = args.action ? ` ${args.action}` : "";
-      return `正在更新系统配置${action}...`;
+      return t("tool.system", { action });
     }
 
-    return `正在执行 ${toolName}...`;
+    return t("tool.running", { tool: toolName });
   }
 
   function handleAgentStep(step) {
@@ -586,7 +587,7 @@
     }
 
     if (step.type === "llm_start") {
-      setThinkingStatus(step.iteration > 0 ? "工具结果已返回，正在继续思考..." : "正在理解你的消息...");
+      setThinkingStatus(step.iteration > 0 ? t("status.toolReturned") : t("status.understanding"));
       return;
     }
 
@@ -596,7 +597,7 @@
     }
 
     if (step.type === "tool_done") {
-      setThinkingStatus("工具执行完成，正在整理回复...");
+      setThinkingStatus(t("status.toolDone"));
       return;
     }
 
@@ -850,7 +851,7 @@
     const model = state.llmConfig.values.model.trim();
     const apiKey = state.llmConfig.values.apiKey.trim();
     if (!apiBase || !model) {
-      state.llmConfig.error = "请填写 Base URL 和 Model";
+      state.llmConfig.error = t("llm.required");
       renderHoverMessages();
       return;
     }
@@ -867,7 +868,7 @@
     const response = await safeSendRuntimeMessage({ type: "setLlmConfig", config });
     state.llmConfig.saving = false;
     if (!response?.ok) {
-      state.llmConfig.error = response?.error || "保存失败";
+      state.llmConfig.error = response?.error || t("llm.saveFailed");
       renderHoverMessages();
       return;
     }
@@ -876,7 +877,7 @@
     closeConfigPanel("llm");
     state.chatVisible = true;
     state.chatHoldExpanded = true;
-    addHoverMessage("LLM Provider 已保存，可以开始聊天了。", "left");
+    addHoverMessage(t("llm.saved"), "left");
     renderHoverMessages();
     scheduleSync();
   }
@@ -923,7 +924,7 @@
       channel
     });
     if (!response?.ok) {
-      throw new Error(response?.error || "频道配置读取失败");
+      throw new Error(response?.error || t("channel.readFailed"));
     }
     state.channelConfig.config = response.result || null;
     return state.channelConfig.config;
@@ -982,7 +983,7 @@
     });
     state.channelConfig.loading = false;
     if (!response?.ok) {
-      state.channelConfig.error = response?.error || "二维码获取失败";
+      state.channelConfig.error = response?.error || t("channel.qrFetchFailed");
       renderHoverMessages();
       return;
     }
@@ -1010,14 +1011,14 @@
       state.channelConfig.loading = false;
     }
     if (!response?.ok) {
-      state.channelConfig.error = response?.error || "登录状态检查失败";
+      state.channelConfig.error = response?.error || t("channel.loginCheckFailed");
       renderHoverMessages();
       return;
     }
     state.channelConfig.login = response.result || null;
     if (state.channelConfig.login?.status === "confirmed") {
       await refreshChannelConfig(channel).catch(() => null);
-      addHoverMessage("微信频道已配置完成。", "left");
+      addHoverMessage(t("channel.wechatConfigured"), "left");
       closeConfigPanel("channel");
       stopChannelAutoCheck();
     }
@@ -1227,8 +1228,8 @@
       return;
     }
 
-    setThinkingStatus("正在理解你的消息...");
-    const replyId = addHoverMessage("正在想...", "left", { pending: true });
+    setThinkingStatus(t("status.understanding"));
+    const replyId = addHoverMessage(t("chat.thinking"), "left", { pending: true });
     let fullText = "";
     let settled = false;
     let port = null;
@@ -1239,7 +1240,7 @@
 
       settled = true;
       setThinkingStatus("");
-      updateHoverMessage(replyId, fullText || "我刚刚没想出来：LLM 请求超时");
+      updateHoverMessage(replyId, fullText || t("llm.timeout"));
       try {
         port?.disconnect();
       } catch {}
@@ -1249,7 +1250,7 @@
       settled = true;
       window.clearTimeout(timeoutId);
       setThinkingStatus("");
-      updateHoverMessage(replyId, fullText || "我刚刚没想出来：LLM 返回为空");
+      updateHoverMessage(replyId, fullText || t("llm.empty"));
     }
 
     try {
@@ -1262,9 +1263,9 @@
         if (payload?.type === "delta") {
           fullText += payload.delta || "";
           if (fullText.trim()) {
-            setThinkingStatus("正在生成回复...");
+            setThinkingStatus(t("status.generating"));
           }
-          updateHoverMessage(replyId, fullText || "正在想...", { pending: true });
+          updateHoverMessage(replyId, fullText || t("chat.thinking"), { pending: true });
           return;
         }
 
@@ -1288,10 +1289,10 @@
           updateHoverMessage(
             replyId,
             needsConfig
-              ? "还没配置 LLM API key，我暂时只能先陪你到这里。"
+              ? t("llm.missingKey")
               : interrupted
-                ? fullText || "刚刚的回复被中断了，可以再发一次。"
-                : `我刚刚没想出来：${errorText || "LLM 请求失败"}`
+                ? fullText || t("llm.interrupted")
+                : t("llm.failed", { error: errorText || t("llm.requestFailed") })
           );
           reportError("chat_with_pet_stream", new Error(errorText || "LLM request failed"));
         }
@@ -1310,7 +1311,7 @@
       settled = true;
       window.clearTimeout(timeoutId);
       setThinkingStatus("");
-      updateHoverMessage(replyId, `我刚刚没想出来：${error?.message || String(error)}`);
+      updateHoverMessage(replyId, t("llm.failed", { error: error?.message || String(error) }));
       reportError("chat_with_pet_stream", error);
     }
   }
@@ -1328,7 +1329,7 @@
     state.chatHoldExpanded = true;
     scheduleSync();
 
-    const content = value.length > 12000 ? `${value.slice(0, 12000)}\n\n[内容过长，已截断]` : value;
+    const content = value.length > 12000 ? `${value.slice(0, 12000)}\n\n[Content truncated]` : value;
     elements.buttonHoverInput.value = content;
     window.requestAnimationFrame(() => {
       elements.buttonHoverInput.focus();
@@ -1480,7 +1481,7 @@
     buttonIconWrap.className = "pig-icon-wrap";
     buttonIconWrap.setAttribute("role", "button");
     buttonIconWrap.tabIndex = 0;
-    buttonIconWrap.title = "拖动移动按钮，点击展开聊天";
+    buttonIconWrap.title = t("chat.dragHint");
 
     const buttonMascot = document.createElement("span");
     buttonMascot.className = "pig-mascot";
@@ -1671,8 +1672,8 @@
     const buttonHoverInput = document.createElement("input");
     buttonHoverInput.type = "text";
     buttonHoverInput.className = "pig-hover-input";
-    buttonHoverInput.placeholder = "输入文字";
-    buttonHoverInput.setAttribute("aria-label", "悬浮按钮文字输入");
+    buttonHoverInput.placeholder = t("chat.inputPlaceholder");
+    buttonHoverInput.setAttribute("aria-label", t("chat.inputAria"));
     buttonHoverInput.autocomplete = "off";
 
     const hoverMessages = document.createElement("div");

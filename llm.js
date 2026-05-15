@@ -5,11 +5,12 @@
   const LLM_TIMEOUT_MS = LLM_CONFIG.timeoutMs || 120000;
   const LLM_HISTORY_LIMIT = LLM_CONFIG.maxMessages || 32;
   const MODEL_ALIASES = LLM_CONFIG.modelAliases || {};
+  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
   const DEFAULT_CONFIG = LLM_CONFIG.defaultConfig || {
     model: "Qwen3.6-27B",
     apiBase: "https://ai.gitee.com/v1",
     apiKey: "",
-    systemPrompt: "你是 onecai 浏览器扩展里的小宠物助手。用中文回复，语气温和、简短、有陪伴感。不要提到自己是模型。"
+    systemPrompt: t("system.prompt")
   };
   const DEBUG_LLM = LLM_CONFIG.debug === true;
 
@@ -58,7 +59,7 @@
     const model = String(stored.model || "").trim() || DEFAULT_CONFIG.model;
     const apiBase = String(stored.apiBase || "").trim() || DEFAULT_CONFIG.apiBase;
     const apiKey = String(stored.apiKey || "").trim() || DEFAULT_CONFIG.apiKey;
-    const systemPrompt = String(stored.systemPrompt || "").trim() || DEFAULT_CONFIG.systemPrompt;
+    const systemPrompt = String(stored.systemPrompt || "").trim() || DEFAULT_CONFIG.systemPrompt || t("system.prompt");
 
     return {
       ...DEFAULT_CONFIG,
