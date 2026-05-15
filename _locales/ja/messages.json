@@ -1,6 +1,6 @@
 {
   "appDescription": {
-    "message": "dogeclaw は openclaw の browser-side agent companion です。ページ内チャット、site-specific tools、ブラウザ自動化に対応します。"
+    "message": "dogeclaw は browser-side agent です。ページ内チャット、site-specific tools、ブラウザ自動化に対応します。"
   },
   "actionTitle": {
     "message": "dogeclaw 設定"

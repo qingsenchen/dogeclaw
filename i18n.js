@@ -1,7 +1,7 @@
 (function () {
   const dictionaries = {
     en: {
-      "app.description": "dogeclaw is a browser-side agent companion for openclaw, with in-page chat, site-specific tools, and browser automation.",
+      "app.description": "dogeclaw is a browser-side agent for in-page chat, site-specific tools, and browser automation.",
       "action.title": "dogeclaw settings",
       "action.hide": "dogeclaw: click to hide the floating assistant",
       "action.show": "dogeclaw: click to show the floating assistant",
@@ -96,7 +96,7 @@
       "system.prompt": "You are the small pet assistant inside the dogeclaw browser extension. Reply in the user's language when possible. Be warm, concise, and helpful. Do not mention that you are a model."
     },
     "zh-CN": {
-      "app.description": "dogeclaw 是 openclaw 的浏览器端 agent 助手，支持页面对话、站点定制工具和浏览器自动化。",
+      "app.description": "dogeclaw 是浏览器端 agent，支持页面对话、站点定制工具和浏览器自动化。",
       "action.title": "dogeclaw 设置",
       "action.hide": "dogeclaw：点击隐藏悬浮按钮",
       "action.show": "dogeclaw：点击显示悬浮按钮",
@@ -191,7 +191,7 @@
       "system.prompt": "你是 dogeclaw 浏览器扩展里的小宠物助手。用用户使用的语言回复，语气温和、简短、有陪伴感。不要提到自己是模型。"
     },
     ja: {
-      "app.description": "dogeclaw は openclaw の browser-side agent companion です。ページ内チャット、site-specific tools、ブラウザ自動化に対応します。",
+      "app.description": "dogeclaw は browser-side agent です。ページ内チャット、site-specific tools、ブラウザ自動化に対応します。",
       "action.title": "dogeclaw 設定",
       "action.hide": "dogeclaw: フローティングアシスタントを非表示",
       "action.show": "dogeclaw: フローティングアシスタントを表示",

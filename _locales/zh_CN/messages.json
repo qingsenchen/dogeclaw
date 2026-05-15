@@ -1,6 +1,6 @@
 {
   "appDescription": {
-    "message": "dogeclaw 是 openclaw 的浏览器端 agent 助手，支持页面对话、站点定制工具和浏览器自动化。"
+    "message": "dogeclaw 是浏览器端 agent，支持页面对话、站点定制工具和浏览器自动化。"
   },
   "actionTitle": {
     "message": "dogeclaw 设置"

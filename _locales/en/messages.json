@@ -1,6 +1,6 @@
 {
   "appDescription": {
-    "message": "dogeclaw is a browser-side agent companion for openclaw, with in-page chat, site-specific tools, and browser automation."
+    "message": "dogeclaw is a browser-side agent for in-page chat, site-specific tools, and browser automation."
   },
   "actionTitle": {
     "message": "dogeclaw settings"

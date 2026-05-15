@@ -5,7 +5,7 @@
 <h1 align="center">dogeclaw</h1>
 
 <p align="center">
-  A browser-side agent companion for openclaw, bringing site-specific tools and in-page automation to Chrome.
+  A browser-side agent bringing site-specific tools, in-page chat, and automation to Chrome.
 </p>
 
 <p align="center">

@@ -5,7 +5,7 @@
 <h1 align="center">dogeclaw</h1>
 
 <p align="center">
-  openclaw 的浏览器端 agent 助手，为 Chrome 带来站点定制工具和页面内自动化能力。
+  面向 Chrome 的浏览器端 agent，提供站点定制工具、页面对话和自动化能力。
 </p>
 
 <p align="center">
