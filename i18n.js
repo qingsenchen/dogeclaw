@@ -1,11 +1,11 @@
 (function () {
   const dictionaries = {
     en: {
-      "app.description": "onecai is a browser AI assistant with a desktop-pet companion, in-page chat, selected-text handoff, tool calling, and browser control.",
-      "action.title": "onecai settings",
-      "action.hide": "onecai: click to hide the floating assistant",
-      "action.show": "onecai: click to show the floating assistant",
-      "context.sendSelection": "Send selected text to onecai",
+      "app.description": "dogeclaw is a browser-side agent companion for openclaw, with in-page chat, site-specific tools, and browser automation.",
+      "action.title": "dogeclaw settings",
+      "action.hide": "dogeclaw: click to hide the floating assistant",
+      "action.show": "dogeclaw: click to show the floating assistant",
+      "context.sendSelection": "Send selected text to dogeclaw",
       "image.alt": "Image",
       "llm.configTitle": "Configure LLM Provider",
       "llm.apiKeyPlaceholder": "Leave empty to keep the current key",
@@ -57,7 +57,7 @@
       "channel.noLogin": "No login is in progress. Please start login first.",
       "channel.loginExpired": "Login timed out: the QR code expired multiple times. Please restart the login flow.",
       "channel.loginTimeout": "Login timed out. Please try again.",
-      "agent.wechatInstruction": "You are responding through the WeChat channel. When browser control needs to open a web page, use the browser_control new_tab action to open a new tab. Do not use navigate to replace the current active tab.",
+      "agent.wechatInstruction": "You are responding through the WeChat channel. For browser control, use an explicit tabId when the user has selected or opened a specific tab. If no new tab was opened and no tabId is provided, operate on the current active tab.",
       "agent.processFailed": "Processing failed: {error}",
       "agent.done": "Done.",
       "agent.emptyReply": "The model returned no displayable content. Please try again later.",
@@ -93,14 +93,14 @@
       "pet.angry.0": "Hmm!",
       "pet.angry.1": "Not happy",
       "pet.angry.2": "Woof!",
-      "system.prompt": "You are the small pet assistant inside the onecai browser extension. Reply in the user's language when possible. Be warm, concise, and helpful. Do not mention that you are a model."
+      "system.prompt": "You are the small pet assistant inside the dogeclaw browser extension. Reply in the user's language when possible. Be warm, concise, and helpful. Do not mention that you are a model."
     },
     "zh-CN": {
-      "app.description": "onecai（汪柴）是一个带桌面宠物的浏览器智能助手，支持网页对话、选中文本发送、工具调用和浏览器控制。",
-      "action.title": "onecai 设置",
-      "action.hide": "onecai：点击隐藏悬浮按钮",
-      "action.show": "onecai：点击显示悬浮按钮",
-      "context.sendSelection": "发送选中内容到 onecai",
+      "app.description": "dogeclaw 是 openclaw 的浏览器端 agent 助手，支持页面对话、站点定制工具和浏览器自动化。",
+      "action.title": "dogeclaw 设置",
+      "action.hide": "dogeclaw：点击隐藏悬浮按钮",
+      "action.show": "dogeclaw：点击显示悬浮按钮",
+      "context.sendSelection": "发送选中内容到 dogeclaw",
       "image.alt": "图片",
       "llm.configTitle": "配置 LLM Provider",
       "llm.apiKeyPlaceholder": "留空使用当前默认 Key",
@@ -152,7 +152,7 @@
       "channel.noLogin": "当前没有进行中的登录，请先发起登录。",
       "channel.loginExpired": "登录超时：二维码多次过期，请重新开始登录流程。",
       "channel.loginTimeout": "登录超时，请重试。",
-      "agent.wechatInstruction": "你正在通过微信通道响应用户。微信通道需要控制浏览器打开网页时，必须使用 browser_control 的 new_tab 动作打开新标签页，不要使用 navigate 覆盖当前活动标签页。",
+      "agent.wechatInstruction": "你正在通过微信通道响应用户。进行浏览器控制时，如果用户已选择或打开了明确的标签页，请使用对应 tabId；如果没有打开新标签页且没有提供 tabId，就以当前激活的标签页作为操作对象。",
       "agent.processFailed": "处理失败：{error}",
       "agent.done": "已完成。",
       "agent.emptyReply": "模型没有返回可展示内容，请稍后再试。",
@@ -188,14 +188,14 @@
       "pet.angry.0": "哼！",
       "pet.angry.1": "不开心",
       "pet.angry.2": "汪！",
-      "system.prompt": "你是 onecai 浏览器扩展里的小宠物助手。用用户使用的语言回复，语气温和、简短、有陪伴感。不要提到自己是模型。"
+      "system.prompt": "你是 dogeclaw 浏览器扩展里的小宠物助手。用用户使用的语言回复，语气温和、简短、有陪伴感。不要提到自己是模型。"
     },
     ja: {
-      "app.description": "onecai は、デスクトップペット風のブラウザ AI アシスタントです。ページ内チャット、選択テキスト送信、ツール呼び出し、ブラウザ操作に対応します。",
-      "action.title": "onecai 設定",
-      "action.hide": "onecai: フローティングアシスタントを非表示",
-      "action.show": "onecai: フローティングアシスタントを表示",
-      "context.sendSelection": "選択したテキストを onecai に送信",
+      "app.description": "dogeclaw は openclaw の browser-side agent companion です。ページ内チャット、site-specific tools、ブラウザ自動化に対応します。",
+      "action.title": "dogeclaw 設定",
+      "action.hide": "dogeclaw: フローティングアシスタントを非表示",
+      "action.show": "dogeclaw: フローティングアシスタントを表示",
+      "context.sendSelection": "選択したテキストを dogeclaw に送信",
       "image.alt": "画像",
       "llm.configTitle": "LLM Provider を設定",
       "llm.apiKeyPlaceholder": "空欄の場合は現在の Key を保持",
@@ -247,7 +247,7 @@
       "channel.noLogin": "進行中のログインがありません。先にログインを開始してください。",
       "channel.loginExpired": "ログインがタイムアウトしました。QR コードが複数回期限切れになりました。ログインフローをやり直してください。",
       "channel.loginTimeout": "ログインがタイムアウトしました。もう一度お試しください。",
-      "agent.wechatInstruction": "WeChat チャンネル経由でユーザーに返信しています。ブラウザ操作で Web ページを開く必要がある場合は、browser_control の new_tab action で新しいタブを開いてください。現在のアクティブタブを navigate で置き換えないでください。",
+      "agent.wechatInstruction": "WeChat チャンネル経由でユーザーに返信しています。ブラウザ操作では、ユーザーが特定のタブを選択または開いている場合は tabId を明示してください。新しいタブを開いておらず tabId も指定されていない場合は、現在のアクティブタブを操作対象にしてください。",
       "agent.processFailed": "処理に失敗しました: {error}",
       "agent.done": "完了しました。",
       "agent.emptyReply": "モデルから表示できる内容が返されませんでした。後でもう一度お試しください。",
@@ -283,7 +283,7 @@
       "pet.angry.0": "むう！",
       "pet.angry.1": "不機嫌",
       "pet.angry.2": "ワン！",
-      "system.prompt": "あなたは onecai ブラウザ拡張機能の小さなペットアシスタントです。可能な限りユーザーの言語で、温かく簡潔に役立つ返答をしてください。自分がモデルであることは述べないでください。"
+      "system.prompt": "あなたは dogeclaw ブラウザ拡張機能の小さなペットアシスタントです。可能な限りユーザーの言語で、温かく簡潔に役立つ返答をしてください。自分がモデルであることは述べないでください。"
     }
   };
 

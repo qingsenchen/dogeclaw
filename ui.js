@@ -204,7 +204,7 @@
     const apiBaseInput = createInput({
       className: "pig-config-input",
       type: "url",
-      placeholder: llmDefaults.apiBase || "https://ai.gitee.com/v1",
+      placeholder: llmDefaults.apiBase || "https://api.openai.com/v1",
       value: state.llmConfig.values.apiBase,
       onInput: (value) => {
         state.llmConfig.values.apiBase = value;
@@ -214,7 +214,7 @@
     const modelInput = createInput({
       className: "pig-config-input",
       type: "text",
-      placeholder: llmDefaults.model || "Qwen3.6-27B",
+      placeholder: llmDefaults.model || "gpt-4o-mini",
       value: state.llmConfig.values.model,
       onInput: (value) => {
         state.llmConfig.values.model = value;

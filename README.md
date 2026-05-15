@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="icons/icon-128.png" alt="onecai" width="96" height="96">
+  <img src="icons/icon-128.png" alt="dogeclaw" width="96" height="96">
 </p>
 
-<h1 align="center">onecai</h1>
+<h1 align="center">dogeclaw</h1>
 
 <p align="center">
-  A Chrome MV3 extension that brings a desktop-pet style AI assistant into every web page.
+  A browser-side agent companion for openclaw, bringing site-specific tools and in-page automation to Chrome.
 </p>
 
 <p align="center">
@@ -17,6 +17,7 @@
 <p align="center">
   <a href="#features">Features</a>
   · <a href="#demo">Demo</a>
+  · <a href="#why-dogeclaw">Why dogeclaw?</a>
   · <a href="#quick-start">Quick Start</a>
   · <a href="#configuration">Configuration</a>
   · <a href="#usage">Usage</a>
@@ -26,14 +27,24 @@
 
 ## Overview
 
-onecai, also named 汪柴, is a browser AI assistant packaged as a Chrome Manifest V3 extension. It adds a draggable floating pet to web pages, supports in-page chat, OpenAI-compatible LLM providers, tool calling, browser actions, selected-text handoff, and optional WeChat channel integration.
+dogeclaw is a browser AI assistant packaged as a Chrome Manifest V3 extension. It adds a draggable floating pet to web pages, supports in-page chat, OpenAI-compatible LLM providers, tool calling, browser actions, selected-text handoff, and optional WeChat channel integration.
 
 The project is designed to run locally as an unpacked extension. It does not ship with a built-in API key.
+
+## Why dogeclaw?
+
+dogeclaw is built for browser-side agents. Many professional websites, including stock trading platforms, e-commerce back offices, analytics dashboards, and operational tools, have highly specialized interfaces and domain-specific workflows. These differences make it difficult for a pure AI operator to complete tasks reliably with generic page understanding alone.
+
+Our approach is to customize tool calls for different websites and workflows. Instead of asking an AI agent to infer every interaction from pixels or DOM snapshots, dogeclaw can expose focused browser-side tools that understand the target website's behavior. This makes it possible to complete tasks that are hard for general browser automation to finish on its own.
+
+Compared with openclaw, dogeclaw reduces configuration and is easier to load directly in the browser. But dogeclaw is not intended to replace openclaw. The goal is to become a capable companion to openclaw. In future versions, dogeclaw will communicate with openclaw through the A2A protocol so the two systems can collaborate: openclaw can orchestrate broader agent work, while dogeclaw can handle specialized browser-side actions and site-specific tools.
+
+In short, dogeclaw and openclaw are complementary. dogeclaw focuses on practical browser-side agent capabilities, especially where specialized websites require custom tools rather than generic AI operation.
 
 ## Demo
 
 <p align="center">
-  <img src="docs/demo.gif" alt="onecai demo" width="720">
+  <img src="docs/demo.gif" alt="dogeclaw demo" width="720">
 </p>
 
 ## Features
@@ -44,7 +55,7 @@ The project is designed to run locally as an unpacked extension. It does not shi
 - OpenAI-compatible model provider configuration
 - Agent loop with tool calling and browser-control capabilities
 - Weather lookup tool
-- Right-click menu for sending selected text to onecai
+- Right-click menu for sending selected text to dogeclaw
 - Optional WeChat channel login, polling, message handling, and media support
 - Built-in English, Simplified Chinese, and Japanese localization
 
@@ -55,7 +66,7 @@ The project is designed to run locally as an unpacked extension. It does not shi
 3. Enable Developer mode.
 4. Click Load unpacked.
 5. Select the project directory.
-6. Open or refresh a web page. The onecai floating button should appear in the lower-right corner.
+6. Open or refresh a web page. The dogeclaw floating button should appear in the lower-right corner.
 
 After editing extension files, click Reload on the extension card in `chrome://extensions/`, then refresh the target page.
 
@@ -63,12 +74,12 @@ After editing extension files, click Reload on the extension card in `chrome://e
 
 ### LLM Provider
 
-onecai uses an OpenAI-compatible chat completions API. Configure your own provider before using chat features.
+dogeclaw uses an OpenAI-compatible chat completions API. Configure your own provider before using chat features.
 
-Open the onecai floating panel, choose the LLM Provider configuration view, and fill in:
+Open the dogeclaw floating panel, choose the LLM Provider configuration view, and fill in:
 
-- Base URL, for example `https://ai.gitee.com/v1`
-- Model, for example `Qwen3.6-27B`
+- Base URL, for example `https://api.openai.com/v1`
+- Model, for example `gpt-4o-mini`
 - API Key from your provider
 
 You can replace `model` and `apiBase` with any compatible provider, such as OpenAI, DashScope-compatible gateways, DeepSeek-compatible gateways, or other OpenAI-compatible services.
@@ -79,9 +90,9 @@ LLM debug logging is disabled by default. If you enable it in `config.js`, reque
 
 ## Usage
 
-### Open and Toggle onecai
+### Open and Toggle dogeclaw
 
-Click the onecai icon in the Chrome toolbar to enable or disable the floating assistant on the current page. If the assistant does not appear after installation or reload, refresh the target page.
+Click the dogeclaw icon in the Chrome toolbar to enable or disable the floating assistant on the current page. If the assistant does not appear after installation or reload, refresh the target page.
 
 ### Configure a Model Provider
 
@@ -93,15 +104,15 @@ Click the floating pet to open the chat panel. You can ask questions, summarize 
 
 ### Send Selected Text
 
-Select text on any page, right-click, and choose the onecai menu item to send the selection into the assistant input. This is useful for summarizing, translating, rewriting, or asking follow-up questions about a specific passage.
+Select text on any page, right-click, and choose the dogeclaw menu item to send the selection into the assistant input. This is useful for summarizing, translating, rewriting, or asking follow-up questions about a specific passage.
 
 ### Browser and Tool Actions
 
-onecai can run supported tools such as weather lookup and browser-control helpers. Treat browser actions as user-directed automation: review prompts before sending sensitive page content or asking the assistant to interact with private pages.
+dogeclaw can run supported tools such as weather lookup and browser-control helpers. Treat browser actions as user-directed automation: review prompts before sending sensitive page content or asking the assistant to interact with private pages.
 
 ### WeChat Channel
 
-If you enable the WeChat channel, open the channel configuration view from the floating panel and follow the login flow. After configuration, onecai can poll the channel, process incoming messages, and reply through the configured LLM provider.
+If you enable the WeChat channel, open the channel configuration view from the floating panel and follow the login flow. After configuration, dogeclaw can poll the channel, process incoming messages, and reply through the configured LLM provider.
 
 ### Troubleshooting
 
@@ -112,7 +123,7 @@ If you enable the WeChat channel, open the channel configuration view from the f
 
 ## Privacy and Permissions
 
-onecai requests the following Chrome extension permissions:
+dogeclaw requests the following Chrome extension permissions:
 
 - `activeTab`: interact with the currently active page
 - `scripting`: inject extension scripts into pages
@@ -122,7 +133,7 @@ onecai requests the following Chrome extension permissions:
 - `contextMenus`: add selected-text actions to the right-click menu
 - `<all_urls>` host access: load the assistant UI across web pages
 
-Content you send to onecai, including typed messages, selected text, page context, screenshots, or tool results, may be sent to the LLM provider you configure. Review your provider's data policy before sending sensitive information.
+Content you send to dogeclaw, including typed messages, selected text, page context, screenshots, or tool results, may be sent to the LLM provider you configure. Review your provider's data policy before sending sensitive information.
 
 No API key is included in this repository. Store only your own key locally through Chrome extension storage.
 
@@ -171,6 +182,23 @@ node --check llm.js
 ```
 
 The repository intentionally avoids committing local credentials, build artifacts, browser extension packages, and environment files.
+
+## Contributing
+
+Contributions are welcome, especially around browser-side agent capabilities, site-specific tools, LLM provider compatibility, WeChat channel reliability, documentation, and i18n.
+
+Before opening a pull request:
+
+- Fork the repository and create a focused feature branch.
+- Load the extension locally with Chrome Developer mode and test the changed workflow.
+- Run the JavaScript syntax checks listed above.
+- Run the basic secret scan listed above.
+- Update English, Simplified Chinese, and Japanese i18n strings when changing user-visible text.
+- Do not commit API keys, tokens, cookies, local logs, `.env` files, generated extension packages, or private screenshots.
+
+Please include a clear description, manual testing steps, affected pages or browsers, and screenshots or GIFs when the change affects UI behavior.
+
+For more details, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Third-Party Notices
 

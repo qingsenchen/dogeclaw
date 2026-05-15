@@ -1,8 +1,8 @@
 {
   "appDescription": {
-    "message": "onecai is a browser AI assistant with a desktop-pet companion, in-page chat, selected-text handoff, tool calling, and browser control."
+    "message": "dogeclaw is a browser-side agent companion for openclaw, with in-page chat, site-specific tools, and browser automation."
   },
   "actionTitle": {
-    "message": "onecai settings"
+    "message": "dogeclaw settings"
   }
 }

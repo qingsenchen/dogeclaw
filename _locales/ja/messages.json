@@ -1,8 +1,8 @@
 {
   "appDescription": {
-    "message": "onecai は、デスクトップペット風のブラウザ AI アシスタントです。ページ内チャット、選択テキスト送信、ツール呼び出し、ブラウザ操作に対応します。"
+    "message": "dogeclaw は openclaw の browser-side agent companion です。ページ内チャット、site-specific tools、ブラウザ自動化に対応します。"
   },
   "actionTitle": {
-    "message": "onecai 設定"
+    "message": "dogeclaw 設定"
   }
 }

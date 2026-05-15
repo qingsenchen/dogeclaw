@@ -7,8 +7,8 @@
   const MODEL_ALIASES = LLM_CONFIG.modelAliases || {};
   const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
   const DEFAULT_CONFIG = LLM_CONFIG.defaultConfig || {
-    model: "Qwen3.6-27B",
-    apiBase: "https://ai.gitee.com/v1",
+    model: "gpt-4o-mini",
+    apiBase: "https://api.openai.com/v1",
     apiKey: "",
     systemPrompt: t("system.prompt")
   };
@@ -36,7 +36,7 @@
       return;
     }
 
-    console.debug(`[onecai llm] ${label}`, cloneForLog(payload));
+    console.debug(`[dogeclaw llm] ${label}`, cloneForLog(payload));
   }
 
   function resolveModel(model) {

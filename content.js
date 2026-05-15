@@ -839,9 +839,9 @@
       config.apiKey === "configured"
     );
     state.llmConfig.values = {
-      apiBase: config.apiBase || LLM_DEFAULT_CONFIG.apiBase || "https://ai.gitee.com/v1",
+      apiBase: config.apiBase || LLM_DEFAULT_CONFIG.apiBase || "https://api.openai.com/v1",
       apiKey: "",
-      model: config.model || LLM_DEFAULT_CONFIG.model || "Qwen3.6-27B"
+      model: config.model || LLM_DEFAULT_CONFIG.model || "gpt-4o-mini"
     };
     return state.llmConfig.providerConfigured;
   }

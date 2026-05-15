@@ -107,11 +107,11 @@
             },
             showInChat: {
               type: "boolean",
-              description: "screenshot 后是否直接在当前网页的 onecai 聊天气泡中展示图片。网页会话默认 true，微信通道默认 false。"
+              description: "screenshot 后是否直接在当前网页的 dogeclaw 聊天气泡中展示图片。网页会话默认 true，微信通道默认 false。"
             },
             includeOnecaiUi: {
               type: "boolean",
-              description: "screenshot 是否把 onecai 悬浮按钮也截进去，默认 false。"
+              description: "screenshot 是否把 dogeclaw 悬浮按钮也截进去，默认 false。"
             },
             waitForLoad: {
               type: "boolean",
@@ -127,7 +127,7 @@
       function: {
         name: "system_config",
         description:
-          "管理 onecai 系统配置。用户想查看当前模型、切换模型、修改 API Key/Base URL、修改 LLM 供应商或打开 LLM Provider 配置表单时使用。",
+          "管理 dogeclaw 系统配置。用户想查看当前模型、切换模型、修改 API Key/Base URL、修改 LLM 供应商或打开 LLM Provider 配置表单时使用。",
         parameters: {
           type: "object",
           properties: {
@@ -162,7 +162,7 @@
       function: {
         name: "channel_config",
         description:
-          "管理 onecai 的消息频道配置。用户想把消息发到微信/wechat、查看或配置频道、频道未配置时打开配置界面时使用。本工具只负责频道配置，不负责实际收发消息。微信扫码二维码会直接展示在页面配置卡片中，不要把二维码链接发给用户。",
+          "管理 dogeclaw 的消息频道配置。用户想把消息发到微信/wechat、查看或配置频道、频道未配置时打开配置界面时使用。本工具只负责频道配置，不负责实际收发消息。微信扫码二维码会直接展示在页面配置卡片中，不要把二维码链接发给用户。",
         parameters: {
           type: "object",
           properties: {
@@ -458,10 +458,6 @@
         throw new Error("browser control runtime is unavailable");
       }
       const nextArgs = { ...(args || {}) };
-      if (context.channel === "wechat" && nextArgs.action === "navigate") {
-        nextArgs.action = "new_tab";
-        nextArgs.active = nextArgs.active !== false;
-      }
       if (nextArgs.action === "screenshot") {
         nextArgs.artifactScope = context.channel && context.conversationId
           ? `${context.channel}:${context.conversationId}`

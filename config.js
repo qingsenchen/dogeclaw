@@ -1,9 +1,9 @@
 (function () {
   const config = {
     app: {
-      name: "onecai",
-      displayName: "onecai",
-      chineseName: "汪柴"
+      name: "dogeclaw",
+      displayName: "dogeclaw",
+      chineseName: "dogeclaw"
     },
     storage: {
       llmConfigKey: "onecai-llm-config",
@@ -13,8 +13,7 @@
       wechatStateKey: "onecai-channel-wechat-state",
       wechatLoginKey: "onecai-channel-wechat-login",
       channelHistoryKey: "onecai-channel-history",
-      channelSeenKey: "onecai-channel-seen",
-      channelDebugLogKey: "onecai-channel-debug-log"
+      channelSeenKey: "onecai-channel-seen"
     },
     content: {
       rootId: "onecai-root",
@@ -34,7 +33,6 @@
     channel: {
       historyLimit: 12,
       seenLimit: 200,
-      debugLogLimit: 120,
       alarmPeriodMinutes: 0.5,
       defaultActivePollDurationMs: 180000,
       confirmedActivePollDurationMs: 300000,
@@ -47,7 +45,7 @@
     },
     llm: {
       timeoutMs: 120000,
-      debug: false,
+      debug: true,
       modelAliases: {
         deepseek: "deepseek/deepseek-chat",
         "deepseek-r1": "deepseek/deepseek-reasoner",
@@ -70,8 +68,8 @@
         glm: "openai/glm-4-plus"
       },
       defaultConfig: {
-        model: "Qwen3.6-27B",
-        apiBase: "https://ai.gitee.com/v1",
+        model: "gpt-4o-mini",
+        apiBase: "https://api.openai.com/v1",
         apiKey: "",
         systemPrompt: ""
       }

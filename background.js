@@ -15,10 +15,9 @@ const COMMAND_POLL_ALARM = BACKGROUND_CONFIG.commandPollAlarm || "page-image-gal
 const CHANNEL_POLL_ALARM = BACKGROUND_CONFIG.channelPollAlarm || "onecai-channel-poll";
 const CHANNEL_HISTORY_KEY = STORAGE_CONFIG.channelHistoryKey || "onecai-channel-history";
 const CHANNEL_SEEN_KEY = STORAGE_CONFIG.channelSeenKey || "onecai-channel-seen";
-const CHANNEL_DEBUG_LOG_KEY = STORAGE_CONFIG.channelDebugLogKey || "onecai-channel-debug-log";
+const LEGACY_CHANNEL_DEBUG_LOG_KEY = STORAGE_CONFIG.channelDebugLogKey || "onecai-channel-debug-log";
 const CHANNEL_HISTORY_LIMIT = CHANNEL_CONFIG.historyLimit || 12;
 const CHANNEL_SEEN_LIMIT = CHANNEL_CONFIG.seenLimit || 200;
-const CHANNEL_DEBUG_LOG_LIMIT = CHANNEL_CONFIG.debugLogLimit || 120;
 const CONTENT_SCRIPT_FILES = CONTENT_CONFIG.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
 const CHANNEL_ALARM_PERIOD_MINUTES = CHANNEL_CONFIG.alarmPeriodMinutes || 0.5;
 const CHANNEL_FAST_POLL_DELAY_MS = CHANNEL_CONFIG.fastPollDelayMs || 250;
@@ -49,26 +48,10 @@ let wechatLoginPollTimer = 0;
 let wechatLoginWaitRunning = false;
 const wechatUserConfigCache = new Map();
 
-async function logChannelDebug(event, details = {}) {
-  const entry = {
-    at: new Date().toISOString(),
-    event,
-    details
-  };
-  console.log(`[onecai wechat] ${event}`, details);
-  try {
-    const result = await chrome.storage.local.get(CHANNEL_DEBUG_LOG_KEY);
-    const current = Array.isArray(result[CHANNEL_DEBUG_LOG_KEY]) ? result[CHANNEL_DEBUG_LOG_KEY] : [];
-    current.push(entry);
-    await chrome.storage.local.set({
-      [CHANNEL_DEBUG_LOG_KEY]: current.slice(-CHANNEL_DEBUG_LOG_LIMIT)
-    });
-  } catch {}
-}
+chrome.storage?.local?.remove?.(LEGACY_CHANNEL_DEBUG_LOG_KEY)?.catch?.(() => null);
 
-async function getChannelDebugLog() {
-  const result = await chrome.storage.local.get(CHANNEL_DEBUG_LOG_KEY);
-  return Array.isArray(result[CHANNEL_DEBUG_LOG_KEY]) ? result[CHANNEL_DEBUG_LOG_KEY] : [];
+async function logChannelDebug(event, details = {}) {
+  console.log(`[dogeclaw wechat] ${event}`, details);
 }
 
 function sanitizeFilenamePart(value, fallback) {
@@ -969,7 +952,7 @@ chrome.action.onClicked.addListener(async (tab) => {
     });
     await setActionToggleBadge(tab.id, nextEnabled);
   } catch (error) {
-    console.error("Failed to toggle onecai:", error);
+    console.error("Failed to toggle dogeclaw:", error);
     uploadError({
       source: "background",
       context: "toggle_floating_button",
@@ -1025,7 +1008,7 @@ if (chrome.contextMenus?.onClicked) {
         }
       });
     } catch (error) {
-      console.error("Failed to send selection to onecai:", error);
+      console.error("Failed to send selection to dogeclaw:", error);
       uploadError({
         source: "background",
         context: "context_send_selection",
@@ -1177,13 +1160,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, result });
       })
       .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
-    return true;
-  }
-
-  if (message?.type === "getWechatDebugLogs") {
-    getChannelDebugLog()
-      .then((logs) => sendResponse({ ok: true, logs }))
-      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error), logs: [] }));
     return true;
   }
 

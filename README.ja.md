@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="icons/icon-128.png" alt="onecai" width="96" height="96">
+  <img src="icons/icon-128.png" alt="dogeclaw" width="96" height="96">
 </p>
 
-<h1 align="center">onecai</h1>
+<h1 align="center">dogeclaw</h1>
 
 <p align="center">
-  デスクトップペット風の AI アシスタントを Web ページ上で使える Chrome MV3 拡張機能です。
+  openclaw の browser-side agent companion として、Chrome に site-specific tools とページ内自動化を提供します。
 </p>
 
 <p align="center">
@@ -17,6 +17,7 @@
 <p align="center">
   <a href="#features">Features</a>
   · <a href="#demo">Demo</a>
+  · <a href="#why-dogeclaw">Why dogeclaw?</a>
   · <a href="#quick-start">Quick Start</a>
   · <a href="#configuration">Configuration</a>
   · <a href="#usage">Usage</a>
@@ -26,14 +27,24 @@
 
 ## Overview
 
-onecai、別名 汪柴 は、Chrome Manifest V3 ベースのブラウザ AI アシスタント拡張機能です。Web ページにドラッグ可能なフローティングペットを追加し、ページ内チャット、OpenAI-compatible LLM Provider、ツール呼び出し、ブラウザ操作、選択テキストの送信、任意の WeChat チャンネル連携をサポートします。
+dogeclaw は、Chrome Manifest V3 ベースのブラウザ AI アシスタント拡張機能です。Web ページにドラッグ可能なフローティングペットを追加し、ページ内チャット、OpenAI-compatible LLM Provider、ツール呼び出し、ブラウザ操作、選択テキストの送信、任意の WeChat チャンネル連携をサポートします。
 
 このプロジェクトは、ローカルで unpacked extension として読み込んで使うことを想定しています。API Key は同梱していません。
+
+## Why dogeclaw?
+
+dogeclaw は browser-side agent を目指しています。株式取引サイト、EC 管理画面、分析ダッシュボード、業務システムなど、多くの専門的な Web サイトは、ページ構造やドメイン固有のワークフローが大きく異なります。そのため、汎用的なページ理解だけで純粋な AI 操作にすべてを任せると、安定してタスクを完了することが難しくなります。
+
+dogeclaw の方針は、サイトやワークフローごとにカスタム tool call を用意することです。AI にピクセルや DOM snapshot からすべての操作を推測させるのではなく、対象サイトの振る舞いを理解した browser-side tool を提供します。これにより、汎用ブラウザ自動化だけでは難しい機能も、より安定して実行できます。
+
+openclaw と比べると、dogeclaw は設定を減らし、ブラウザへ直接読み込んで使いやすい形を重視しています。ただし、dogeclaw は openclaw を置き換えるものではありません。目標は openclaw の有力な補助役になることです。今後は A2A protocol を通じて openclaw と連携し、openclaw がより広い agent orchestration を担い、dogeclaw が専門サイト上の browser-side action や site-specific tools を担当する形を目指します。
+
+つまり、dogeclaw と openclaw は補完関係にあります。dogeclaw は実用的な browser-side agent 能力、特に汎用 AI 操作だけでは完了しにくい専門サイト向けのカスタム tool call に注力します。
 
 ## Demo
 
 <p align="center">
-  <img src="docs/demo.gif" alt="onecai demo" width="720">
+  <img src="docs/demo.gif" alt="dogeclaw demo" width="720">
 </p>
 
 ## Features
@@ -44,7 +55,7 @@ onecai、別名 汪柴 は、Chrome Manifest V3 ベースのブラウザ AI ア�
 - OpenAI-compatible モデルプロバイダー設定
 - ツール呼び出しとブラウザ制御に対応した agent loop
 - 天気検索ツール
-- 選択テキストを onecai に送る右クリックメニュー
+- 選択テキストを dogeclaw に送る右クリックメニュー
 - 任意の WeChat チャンネルログイン、ポーリング、メッセージ処理、メディア対応
 - English、簡体中文、日本語のローカライズを内蔵
 
@@ -55,7 +66,7 @@ onecai、別名 汪柴 は、Chrome Manifest V3 ベースのブラウザ AI ア�
 3. Developer mode を有効にします。
 4. Load unpacked をクリックします。
 5. プロジェクトディレクトリを選択します。
-6. 任意の Web ページを開く、または更新します。右下に onecai のフローティングボタンが表示されます。
+6. 任意の Web ページを開く、または更新します。右下に dogeclaw のフローティングボタンが表示されます。
 
 拡張機能のファイルを変更した後は、`chrome://extensions/` の拡張機能カードで Reload をクリックし、対象ページを更新してください。
 
@@ -63,12 +74,12 @@ onecai、別名 汪柴 は、Chrome Manifest V3 ベースのブラウザ AI ア�
 
 ### LLM Provider
 
-onecai は OpenAI-compatible Chat Completions API を使用します。チャット機能を使う前に、自分のプロバイダーを設定してください。
+dogeclaw は OpenAI-compatible Chat Completions API を使用します。チャット機能を使う前に、自分のプロバイダーを設定してください。
 
-onecai のフローティングパネルを開き、LLM Provider 設定画面で以下を入力します。
+dogeclaw のフローティングパネルを開き、LLM Provider 設定画面で以下を入力します。
 
-- Base URL、例: `https://ai.gitee.com/v1`
-- Model、例: `Qwen3.6-27B`
+- Base URL、例: `https://api.openai.com/v1`
+- Model、例: `gpt-4o-mini`
 - 利用するプロバイダーの API Key
 
 `model` と `apiBase` は、OpenAI、DashScope-compatible gateway、DeepSeek-compatible gateway、その他の OpenAI-compatible サービスに置き換えられます。
@@ -79,9 +90,9 @@ LLM debug logging はデフォルトで無効です。`config.js` で有効に�
 
 ## Usage
 
-### onecai を開く・切り替える
+### dogeclaw を開く・切り替える
 
-Chrome ツールバーの onecai アイコンをクリックすると、現在のページでフローティングアシスタントを有効化または無効化できます。インストール後や再読み込み後に表示されない場合は、対象ページを更新してください。
+Chrome ツールバーの dogeclaw アイコンをクリックすると、現在のページでフローティングアシスタントを有効化または無効化できます。インストール後や再読み込み後に表示されない場合は、対象ページを更新してください。
 
 ### モデルプロバイダーを設定する
 
@@ -93,15 +104,15 @@ Chrome ツールバーの onecai アイコンをクリックすると、現在�
 
 ### 選択テキストを送る
 
-任意の Web ページでテキストを選択し、右クリックメニューから onecai の項目を選ぶと、選択内容をアシスタント入力欄に送れます。要約、翻訳、書き換え、特定箇所への追加質問に便利です。
+任意の Web ページでテキストを選択し、右クリックメニューから dogeclaw の項目を選ぶと、選択内容をアシスタント入力欄に送れます。要約、翻訳、書き換え、特定箇所への追加質問に便利です。
 
 ### ブラウザ操作とツール
 
-onecai は天気検索やブラウザ制御ヘルパーなどの対応ツールを呼び出せます。ブラウザ操作はユーザー指示に基づく自動化として扱い、プライベートなページや機密情報を含む内容を送る前に確認してください。
+dogeclaw は天気検索やブラウザ制御ヘルパーなどの対応ツールを呼び出せます。ブラウザ操作はユーザー指示に基づく自動化として扱い、プライベートなページや機密情報を含む内容を送る前に確認してください。
 
 ### WeChat チャンネル
 
-WeChat チャンネルを有効にする場合は、フローティングパネルからチャンネル設定画面を開き、ログインフローに従って設定します。設定後、onecai はチャンネルをポーリングし、受信メッセージを処理し、設定済みの LLM Provider を使って返信できます。
+WeChat チャンネルを有効にする場合は、フローティングパネルからチャンネル設定画面を開き、ログインフローに従って設定します。設定後、dogeclaw はチャンネルをポーリングし、受信メッセージを処理し、設定済みの LLM Provider を使って返信できます。
 
 ### Troubleshooting
 
@@ -112,7 +123,7 @@ WeChat チャンネルを有効にする場合は、フローティングパネ�
 
 ## Privacy and Permissions
 
-onecai は以下の Chrome 拡張機能 permissions を要求します。
+dogeclaw は以下の Chrome 拡張機能 permissions を要求します。
 
 - `activeTab`: 現在アクティブなページとやり取りするため
 - `scripting`: ページへ拡張機能スクリプトを注入するため
@@ -122,7 +133,7 @@ onecai は以下の Chrome 拡張機能 permissions を要求します。
 - `contextMenus`: 選択テキスト用の右クリックメニューを追加するため
 - `<all_urls>` host access: Web ページ上でアシスタント UI を読み込むため
 
-onecai に送信した内容、入力メッセージ、選択テキスト、ページコンテキスト、スクリーンショット、ツール結果などは、設定した LLM Provider に送信される場合があります。機密情報を送る前に、利用するプロバイダーのデータポリシーを確認してください。
+dogeclaw に送信した内容、入力メッセージ、選択テキスト、ページコンテキスト、スクリーンショット、ツール結果などは、設定した LLM Provider に送信される場合があります。機密情報を送る前に、利用するプロバイダーのデータポリシーを確認してください。
 
 このリポジトリには API Key は含まれていません。自分の Key は Chrome 拡張機能のローカルストレージにのみ保存してください。
 
@@ -171,6 +182,23 @@ node --check llm.js
 ```
 
 このリポジトリでは、ローカル認証情報、ビルド成果物、ブラウザ拡張機能パッケージ、環境ファイルをコミットしない方針です。
+
+## Contributing
+
+Contributions are welcome, especially for browser-side agent capabilities, site-specific tools, LLM provider compatibility, WeChat channel reliability, documentation, and i18n.
+
+Before opening a pull request:
+
+- Fork the repository and create a focused feature branch from `main`.
+- Load the extension locally with Chrome Developer mode and test the changed workflow.
+- Run the JavaScript syntax checks listed above.
+- Run the basic secret scan listed above.
+- Update English, Simplified Chinese, and Japanese i18n strings when changing user-visible text.
+- Do not commit API keys, tokens, cookies, local logs, `.env` files, generated extension packages, or private screenshots.
+
+Please include a clear description, manual testing steps, affected pages or browsers, and screenshots or GIFs when the change affects UI behavior.
+
+For more details, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Third-Party Notices
 
