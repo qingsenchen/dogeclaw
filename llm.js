@@ -128,6 +128,20 @@
       .slice(-LLM_HISTORY_LIMIT);
   }
 
+  function buildMessageList(config, history) {
+    const normalized = normalizeHistory(history);
+    const systemPrompts = [
+      config.systemPrompt || DEFAULT_CONFIG.systemPrompt || t("system.prompt"),
+      ...normalized.filter((item) => item.role === "system").map((item) => item.content)
+    ].filter(Boolean);
+    const nonSystemMessages = normalized.filter((item) => item.role !== "system");
+
+    return [
+      { role: "system", content: systemPrompts.join("\n\n") },
+      ...nonSystemMessages
+    ];
+  }
+
   async function buildRequest(message, history = [], stream = false, tools = null) {
     const text = String(message || "").trim();
     if (!text) {
@@ -150,8 +164,7 @@
       body: {
         model: getProviderModelName(config.model),
         messages: [
-          { role: "system", content: config.systemPrompt || DEFAULT_CONFIG.systemPrompt },
-          ...normalizeHistory(history),
+          ...buildMessageList(config, history),
           { role: "user", content: text }
         ],
         temperature: 0.7,
@@ -177,10 +190,7 @@
       url: `${apiBase}/chat/completions`,
       body: {
         model: getProviderModelName(config.model),
-        messages: [
-          { role: "system", content: config.systemPrompt || DEFAULT_CONFIG.systemPrompt },
-          ...normalizeHistory(messages)
-        ],
+        messages: buildMessageList(config, messages),
         temperature: 0.7,
         stream,
         ...(Array.isArray(tools) && tools.length ? { tools, tool_choice: "auto" } : {})
