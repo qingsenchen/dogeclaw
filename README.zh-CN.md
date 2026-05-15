@@ -1,0 +1,178 @@
+<p align="center">
+  <img src="icons/icon-128.png" alt="onecai" width="96" height="96">
+</p>
+
+<h1 align="center">onecai</h1>
+
+<p align="center">
+  一个将桌面宠物式 AI 助手带到网页中的 Chrome MV3 扩展。
+</p>
+
+<p align="center">
+  <a href="README.md">English</a>
+  · 简体中文
+  · <a href="README.ja.md">日本語</a>
+</p>
+
+<p align="center">
+  <a href="#功能">功能</a>
+  · <a href="#演示">演示</a>
+  · <a href="#快速开始">快速开始</a>
+  · <a href="#配置">配置</a>
+  · <a href="#使用说明">使用说明</a>
+  · <a href="#隐私和权限">隐私</a>
+  · <a href="#开发">开发</a>
+</p>
+
+## 概览
+
+onecai，也叫汪柴，是一个基于 Chrome Manifest V3 的浏览器 AI 助手扩展。它会在网页中添加一个可拖动的悬浮宠物，支持页面内对话、OpenAI-compatible LLM Provider、工具调用、浏览器操作、选中文本发送，以及可选的微信频道集成。
+
+项目设计为本地加载的未打包扩展使用。仓库不会内置任何 API Key。
+
+## 演示
+
+<p align="center">
+  <img src="docs/demo.gif" alt="onecai 演示" width="720">
+</p>
+
+## 功能
+
+- 在网页中显示可拖动的桌面宠物式悬浮助手
+- 可通过 Chrome 扩展图标按页面开启或关闭
+- 页面内聊天 UI，支持流式 LLM 回复
+- 支持 OpenAI-compatible 模型服务配置
+- 支持 agent loop、工具调用和浏览器控制
+- 支持天气查询工具
+- 支持通过右键菜单把选中文本发送给 onecai
+- 可选的微信频道登录、轮询、消息和媒体处理
+
+## 快速开始
+
+1. 克隆或下载本仓库。
+2. 打开 Chrome，进入 `chrome://extensions/`。
+3. 启用“开发者模式”。
+4. 点击“加载已解压的扩展程序”。
+5. 选择项目目录。
+6. 打开或刷新任意网页，右下角会出现 onecai 悬浮按钮。
+
+修改扩展文件后，需要在 `chrome://extensions/` 中点击扩展卡片上的“重新加载”，然后刷新目标网页。
+
+## 配置
+
+### LLM Provider
+
+onecai 使用 OpenAI-compatible Chat Completions API。使用聊天功能前，需要配置你自己的模型服务。
+
+打开 onecai 悬浮面板，进入 LLM Provider 配置视图，并填写：
+
+- Base URL，例如 `https://ai.gitee.com/v1`
+- Model，例如 `Qwen3.6-27B`
+- 你的模型服务 API Key
+
+你可以把 `model` 和 `apiBase` 替换为任何兼容服务，例如 OpenAI、DashScope-compatible 网关、DeepSeek-compatible 网关或其他 OpenAI-compatible 服务。
+
+### 调试日志
+
+LLM 调试日志默认关闭。如果在 `config.js` 中开启，请求和响应内容可能会写入浏览器控制台。处理私密页面内容或敏感提示词时，不建议开启调试日志。
+
+## 使用说明
+
+### 打开和开关 onecai
+
+点击 Chrome 工具栏中的 onecai 图标，可以在当前页面开启或关闭悬浮助手。如果安装或重新加载后没有看到悬浮按钮，请刷新目标网页。
+
+### 配置模型服务
+
+打开悬浮面板，进入 LLM Provider 配置视图，保存 Base URL、模型名称和 API Key。API Key 会保存在 Chrome 扩展本地存储中，不会提交到本仓库。
+
+### 页面内对话
+
+点击悬浮宠物可以打开聊天面板。你可以提问、总结页面内容、请求浏览器操作，或使用支持的工具。如果模型服务支持流式输出，回复会实时显示在面板中。
+
+### 发送选中文本
+
+在任意网页中选中文本，右键选择 onecai 菜单项，即可把选中内容发送到助手输入框。这个功能适合用来总结、翻译、改写或针对局部文本继续提问。
+
+### 浏览器和工具操作
+
+onecai 可以调用天气查询和浏览器控制等受支持工具。浏览器操作属于用户指令驱动的自动化；在处理私密页面或敏感内容前，请先确认要发送给模型服务的信息。
+
+### 微信频道
+
+如果启用微信频道，可以从悬浮面板进入频道配置视图，并按登录流程完成配置。配置完成后，onecai 可以轮询频道消息、处理收到的内容，并通过已配置的 LLM Provider 回复。
+
+### 常见问题
+
+- 修改本地文件后，需要在 `chrome://extensions/` 中重新加载扩展。
+- 重新加载扩展后，需要刷新目标网页。
+- 如果聊天回复失败，请重新打开 LLM Provider 配置面板，确认 Base URL、模型名称和 API Key 正确。
+- 开发调试时可以查看扩展的 Service Worker 控制台。
+
+## 隐私和权限
+
+onecai 会请求以下 Chrome 扩展权限：
+
+- `activeTab`: 与当前活动页面交互
+- `scripting`: 向网页注入扩展脚本
+- `storage`: 保存本地配置和频道状态
+- `alarms`: 调度轮询任务
+- `tabs`: 协调页面级助手状态和浏览器操作
+- `contextMenus`: 添加选中文本相关的右键菜单
+- `<all_urls>` host access: 在网页中加载助手 UI
+
+你发送给 onecai 的内容，包括输入消息、选中文本、页面上下文、截图或工具结果，可能会发送到你配置的 LLM Provider。发送敏感信息前，请先确认服务商的数据政策。
+
+本仓库不包含任何 API Key。请仅通过 Chrome 扩展本地存储保存你自己的 Key。
+
+## 项目结构
+
+```text
+.
+├── manifest.json              # Chrome Manifest V3 扩展清单
+├── config.js                  # 运行时默认值和存储 Key
+├── background.js              # Service worker、agent 路由、工具和频道
+├── content.js                 # 页面内助手 UI 和页面桥接
+├── ui.js                      # 共享 UI 渲染辅助
+├── pet.js                     # 悬浮宠物动画和交互逻辑
+├── llm.js                     # OpenAI-compatible LLM 客户端
+├── agent.js                   # Agent loop 和流式编排
+├── tools.js                   # 暴露给 agent 的工具定义
+├── browser.js                 # 浏览器控制辅助
+├── channels/
+│   └── wechat.js              # 微信频道、登录、轮询和媒体处理
+├── vendor/
+│   └── qrcode-generator.js    # 第三方二维码生成库，MIT License
+└── icons/                     # 扩展图标
+```
+
+## 开发
+
+运行 JavaScript 语法检查：
+
+```sh
+node --check background.js
+node --check channels/wechat.js
+node --check content.js
+node --check llm.js
+```
+
+发布前建议检查：
+
+```sh
+rg -n "apiKey|secret|token|password|Authorization|Bearer|sk-" .
+node --check background.js
+node --check channels/wechat.js
+node --check content.js
+node --check llm.js
+```
+
+仓库会避免提交本地凭证、构建产物、浏览器扩展包和环境文件。
+
+## 第三方声明
+
+- `vendor/qrcode-generator.js` 基于 Kazuhiko Arase 的 QR Code Generator for JavaScript，使用 MIT License。
+
+## License
+
+MIT。见 [LICENSE](LICENSE)。
