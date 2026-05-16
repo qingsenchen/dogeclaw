@@ -131,10 +131,77 @@
       return [];
     }
 
-    return history
+    const normalized = history
       .map(normalizeMessage)
-      .filter((item) => item.role === "tool" || item.content || item.tool_calls)
-      .slice(-LLM_HISTORY_LIMIT);
+      .filter((item) => item.role === "tool" || item.content || item.tool_calls);
+    return sanitizeToolMessageSequence(sliceRecentMessages(normalized, LLM_HISTORY_LIMIT));
+  }
+
+  function getToolCallIds(message) {
+    if (!Array.isArray(message?.tool_calls)) {
+      return [];
+    }
+
+    return message.tool_calls.map((toolCall) => toolCall?.id).filter(Boolean);
+  }
+
+  function sanitizeToolMessageSequence(messages) {
+    const sanitized = [];
+
+    for (let index = 0; index < messages.length; index += 1) {
+      const message = messages[index];
+      if (message.role === "tool") {
+        continue;
+      }
+
+      const hasToolCalls = message.role === "assistant" && Array.isArray(message.tool_calls) && message.tool_calls.length;
+      const toolCallIds = getToolCallIds(message);
+      if (hasToolCalls && !toolCallIds.length) {
+        if (message.content) {
+          sanitized.push({ role: "assistant", content: message.content });
+        }
+        continue;
+      }
+
+      if (hasToolCalls) {
+        const pendingIds = new Set(toolCallIds);
+        const toolMessages = [];
+        let nextIndex = index + 1;
+
+        while (nextIndex < messages.length && messages[nextIndex].role === "tool") {
+          const toolMessage = messages[nextIndex];
+          if (pendingIds.has(toolMessage.tool_call_id)) {
+            toolMessages.push(toolMessage);
+            pendingIds.delete(toolMessage.tool_call_id);
+          }
+          nextIndex += 1;
+        }
+
+        if (pendingIds.size === 0) {
+          sanitized.push(message, ...toolMessages);
+        } else if (message.content) {
+          sanitized.push({ role: "assistant", content: message.content });
+        }
+        index = nextIndex - 1;
+        continue;
+      }
+
+      sanitized.push(message);
+    }
+
+    return sanitized;
+  }
+
+  function sliceRecentMessages(messages, limit) {
+    if (messages.length <= limit) {
+      return messages;
+    }
+
+    let startIndex = messages.length - limit;
+    while (startIndex > 0 && messages[startIndex].role === "tool") {
+      startIndex -= 1;
+    }
+    return messages.slice(startIndex);
   }
 
   function buildMessageList(config, history) {

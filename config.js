@@ -19,7 +19,7 @@
       legacyRootIds: [],
       styleId: "dogeclaw-style",
       scriptFiles: ["platform/extension-api.js", "config.js", "i18n.js", "pet.js", "ui.js", "content.js"],
-      maxHoverMessages: 6,
+      maxHoverMessages: 24,
       mountWatchdogIntervalMs: 1000,
       positionKeyPrefix: "dogeclaw-position:"
     },

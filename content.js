@@ -7,7 +7,7 @@
   const ROOT_ID = CONTENT_CONFIG.rootId || "dogeclaw-root";
   const STYLE_ID = CONTENT_CONFIG.styleId || "dogeclaw-style";
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const MAX_HOVER_MESSAGES = CONTENT_CONFIG.maxHoverMessages || 6;
+  const MAX_HOVER_MESSAGES = CONTENT_CONFIG.maxHoverMessages || 24;
   const MOUNT_WATCHDOG_INTERVAL = CONTENT_CONFIG.mountWatchdogIntervalMs || 1000;
   const POSITION_KEY = `${CONTENT_CONFIG.positionKeyPrefix || "dogeclaw-position:"}${location.host}`;
   const LLM_DEFAULT_CONFIG = globalThis.DogeclawConfig?.llm?.defaultConfig || {};
@@ -39,6 +39,15 @@
 	      startTop: 0
 	    },
 	    hoverMessages: [],
+	    hoverUserScrolled: false,
+	    hoverScrollDrag: {
+	      active: false,
+	      moved: false,
+	      suppressClick: false,
+	      pointerId: null,
+	      startY: 0,
+	      startScrollTop: 0
+	    },
 	    chatVisible: false,
 	    chatHideTimer: 0,
 	    chatCollapseTimer: 0,
@@ -65,10 +74,7 @@
       login: null,
       config: null
     },
-    thinkingActive: false,
-    thinkingDisplayText: "",
-    remoteDisplayText: "",
-    remoteDisplayResetTimer: 0
+    thinkingActive: false
   };
   state.pageConversationId = getPageConversationId();
   const browserRefs = new Map();
@@ -482,14 +488,10 @@
   }
 
   function syncUI() {
-    elements.buttonStatus.textContent = "";
-    refreshButtonStatusMarquee();
     elements.button.classList.toggle("is-open", false);
     elements.button.classList.toggle("is-dragging", state.drag.active && state.drag.moved);
     elements.button.classList.toggle("is-thinking", state.thinkingActive);
     elements.button.classList.toggle("is-chat-holding", state.chatHoldExpanded);
-    elements.button.classList.toggle("has-status-text", false);
-    elements.button.classList.toggle("has-remote-text", Boolean(state.remoteDisplayText));
     if (!elements.hoverMessages.hidden) {
       updateHoverMessagesBounds();
     }
@@ -501,62 +503,8 @@
     });
   }
 
-  function refreshButtonStatusMarquee() {
-    if (!elements?.buttonStatus || !elements?.buttonStatusViewport) {
-      return;
-    }
-
-    const textEl = elements.buttonStatus;
-    const viewportEl = elements.buttonStatusViewport;
-    textEl.classList.remove("is-marquee");
-    textEl.style.removeProperty("--pig-marquee-start");
-    textEl.style.removeProperty("--pig-marquee-end");
-    textEl.style.removeProperty("--pig-marquee-duration");
-    textEl.style.transform = "translateX(0)";
-
-    window.requestAnimationFrame(() => {
-      const hasDisplayText = Boolean(state.thinkingDisplayText || state.remoteDisplayText);
-      if (!hasDisplayText) {
-        return;
-      }
-
-      const viewportWidth = viewportEl.clientWidth || 0;
-      const textWidth = textEl.scrollWidth || 0;
-      if (!viewportWidth || textWidth <= viewportWidth + 4) {
-        return;
-      }
-
-      const distance = Math.max(0, textWidth - viewportWidth + 24);
-      const durationSeconds = Math.max(4, distance / 18);
-      textEl.style.setProperty("--pig-marquee-start", "0px");
-      textEl.style.setProperty("--pig-marquee-end", `${distance}px`);
-      textEl.style.setProperty("--pig-marquee-duration", `${durationSeconds}s`);
-      textEl.classList.add("is-marquee");
-
-      if (state.thinkingActive) {
-        return;
-      }
-
-      if (state.remoteDisplayResetTimer) {
-        window.clearTimeout(state.remoteDisplayResetTimer);
-      }
-      state.remoteDisplayResetTimer = window.setTimeout(() => {
-        state.remoteDisplayResetTimer = 0;
-        if (state.remoteDisplayText) {
-          state.remoteDisplayText = "";
-          scheduleSync();
-        }
-      }, Math.ceil(durationSeconds * 2000));
-    });
-  }
-
   function setThinkingStatus(text) {
-    state.thinkingActive = Boolean(text);
-    state.thinkingDisplayText = "";
-    if (state.thinkingActive && state.remoteDisplayResetTimer) {
-      window.clearTimeout(state.remoteDisplayResetTimer);
-      state.remoteDisplayResetTimer = 0;
-    }
+    state.thinkingActive = Boolean(String(text || ""));
     scheduleSync();
   }
 
@@ -738,9 +686,19 @@
     }
 
     const buttonRect = elements.button.getBoundingClientRect();
-    elements.hoverMessages.style.removeProperty("--pig-chat-max-height");
-    elements.hoverMessages.classList.toggle("is-compact-vertical", false);
-    return Math.max(0, Math.floor(buttonRect.top));
+    const gap = 10;
+    const minHeight = Math.min(120, Math.max(64, Math.floor(window.innerHeight * 0.36)));
+    const aboveHeight = Math.max(0, Math.floor(buttonRect.top - FLOATING_BUTTON_EDGE_PADDING - gap));
+    const belowHeight = Math.max(0, Math.floor(window.innerHeight - buttonRect.bottom - FLOATING_BUTTON_EDGE_PADDING - gap));
+    const shouldPlaceBelow = aboveHeight < minHeight && belowHeight > aboveHeight;
+    const availableHeight = shouldPlaceBelow ? belowHeight : aboveHeight;
+    const viewportCap = Math.max(64, Math.floor(window.innerHeight - FLOATING_BUTTON_EDGE_PADDING * 2));
+    const maxHeight = Math.min(viewportCap, Math.max(minHeight, availableHeight));
+
+    elements.hoverMessages.style.setProperty("--pig-chat-max-height", `${maxHeight}px`);
+    elements.hoverMessages.classList.toggle("is-below-button", shouldPlaceBelow);
+    elements.hoverMessages.classList.toggle("is-compact-vertical", maxHeight < 260);
+    return maxHeight;
   }
 
   function setChatVisible(visible) {
@@ -1054,6 +1012,7 @@
       return;
     }
 
+    const scrollSnapshot = getHoverMessagesScrollSnapshot();
     elements.hoverMessages.replaceChildren();
     let componentRow = null;
     if (state.llmConfig.visible) {
@@ -1109,7 +1068,7 @@
       elements.hoverMessages.classList.remove("is-collapsing");
       elements.hoverMessages.classList.add("is-visible");
       updateHoverMessagesBounds();
-      window.requestAnimationFrame(pruneOverflowingHoverMessages);
+      window.requestAnimationFrame(() => syncHoverMessagesScroll(scrollSnapshot));
       return;
     }
 
@@ -1140,32 +1099,153 @@
     state.hoverMessages = state.hoverMessages.slice(-MAX_HOVER_MESSAGES);
   }
 
-  function pruneOverflowingHoverMessages() {
+  function getHoverMessagesScrollSnapshot() {
+    if (!elements?.hoverMessages || elements.hoverMessages.hidden) {
+      return { pinToBottom: true, scrollTop: 0 };
+    }
+
+    const maxScrollTop = Math.max(0, elements.hoverMessages.scrollHeight - elements.hoverMessages.clientHeight);
+    return {
+      pinToBottom: !state.hoverUserScrolled && (maxScrollTop <= 2 || maxScrollTop - elements.hoverMessages.scrollTop <= 24),
+      scrollTop: elements.hoverMessages.scrollTop
+    };
+  }
+
+  function syncHoverMessagesScroll(scrollSnapshot = null) {
     if (!elements?.hoverMessages || elements.hoverMessages.hidden) {
       return;
     }
 
     updateHoverMessagesBounds();
+    const maxScrollTop = Math.max(0, elements.hoverMessages.scrollHeight - elements.hoverMessages.clientHeight);
+    elements.hoverMessages.classList.toggle("is-scrollable", maxScrollTop > 2);
 
-    let changed = false;
-    while (
-      state.hoverMessages.length > 1 &&
-      elements.hoverMessages.scrollHeight > elements.hoverMessages.clientHeight + 2
-    ) {
-      const removableIndex = state.hoverMessages.findIndex((message, index) => index < state.hoverMessages.length - 1 && !message.pending);
-      if (removableIndex < 0) {
-        break;
-      }
-
-      state.hoverMessages.splice(removableIndex, 1);
-      changed = true;
-      renderHoverMessages();
+    if (maxScrollTop <= 2) {
+      elements.hoverMessages.scrollTop = 0;
+      state.hoverUserScrolled = false;
       return;
     }
 
-    if (!changed) {
-      elements.hoverMessages.scrollTop = elements.hoverMessages.scrollHeight;
+    if (!scrollSnapshot || scrollSnapshot.pinToBottom) {
+      elements.hoverMessages.scrollTop = maxScrollTop;
+      state.hoverUserScrolled = false;
+      return;
     }
+
+    elements.hoverMessages.scrollTop = Math.min(scrollSnapshot.scrollTop, maxScrollTop);
+    state.hoverUserScrolled = maxScrollTop - elements.hoverMessages.scrollTop > 24;
+  }
+
+  function handleHoverMessagesScroll() {
+    const scroller = elements?.hoverMessages;
+    if (!scroller || scroller.hidden) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    scroller.classList.toggle("is-scrollable", maxScrollTop > 2);
+    state.hoverUserScrolled = maxScrollTop > 2 && maxScrollTop - scroller.scrollTop > 24;
+  }
+
+  function isInteractiveHoverScrollTarget(target) {
+    return Boolean(
+      target?.closest?.(
+        'a, button, input, textarea, select, option, label, [contenteditable="true"], [role="button"], .pig-config-button, .pig-config-input'
+      )
+    );
+  }
+
+  function stopHoverScrollDrag(event = null) {
+    const drag = state.hoverScrollDrag;
+    if (!drag.active) {
+      return;
+    }
+
+    if (event?.currentTarget?.releasePointerCapture && event.pointerId === drag.pointerId) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {}
+    }
+
+    drag.active = false;
+    drag.pointerId = null;
+    elements.hoverMessages?.classList.remove("is-drag-scrolling");
+  }
+
+  function handleHoverMessagesPointerDown(event) {
+    const scroller = elements?.hoverMessages;
+    const bubble = event.target?.closest?.(".pig-chat-bubble");
+    if (!scroller || scroller.hidden || !bubble || !scroller.contains(bubble) || isInteractiveHoverScrollTarget(event.target)) {
+      return;
+    }
+
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    if (maxScrollTop <= 2) {
+      return;
+    }
+
+    const drag = state.hoverScrollDrag;
+    drag.active = true;
+    drag.moved = false;
+    drag.pointerId = event.pointerId;
+    drag.startY = event.clientY;
+    drag.startScrollTop = scroller.scrollTop;
+    try {
+      event.currentTarget?.setPointerCapture?.(event.pointerId);
+    } catch {}
+  }
+
+  function handleHoverMessagesPointerMove(event) {
+    const drag = state.hoverScrollDrag;
+    const scroller = elements?.hoverMessages;
+    if (!drag.active || !scroller || event.pointerId !== drag.pointerId) {
+      return;
+    }
+
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.abs(deltaY) < DRAG_START_THRESHOLD) {
+      return;
+    }
+
+    drag.moved = true;
+    drag.suppressClick = true;
+    scroller.classList.add("is-drag-scrolling");
+
+    const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    scroller.scrollTop = Math.min(maxScrollTop, Math.max(0, drag.startScrollTop - deltaY));
+    state.hoverUserScrolled = maxScrollTop > 2 && maxScrollTop - scroller.scrollTop > 24;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleHoverMessagesPointerUp(event) {
+    const drag = state.hoverScrollDrag;
+    if (!drag.active || event.pointerId !== drag.pointerId) {
+      return;
+    }
+
+    if (drag.moved) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.setTimeout(() => {
+        state.hoverScrollDrag.suppressClick = false;
+      }, 80);
+    }
+    stopHoverScrollDrag(event);
+  }
+
+  function handleHoverMessagesClick(event) {
+    if (!state.hoverScrollDrag.suppressClick) {
+      return;
+    }
+
+    state.hoverScrollDrag.suppressClick = false;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   function addHoverMessage(message, side = "right", options = {}) {
@@ -1187,6 +1267,9 @@
     state.hoverMessages.push(item);
 
     trimHoverMessagesToLimit();
+    if (item.side === "right") {
+      state.hoverUserScrolled = false;
+    }
     state.chatVisible = true;
     if (state.chatHideTimer) {
       window.clearTimeout(state.chatHideTimer);
@@ -1667,13 +1750,6 @@
     const buttonStatusDot = document.createElement("span");
     buttonStatusDot.className = "pig-status-dot";
 
-    const buttonStatusViewport = document.createElement("span");
-    buttonStatusViewport.className = "pig-status-viewport";
-
-    const buttonStatusText = document.createElement("span");
-    buttonStatusText.className = "pig-status-text";
-    buttonStatusText.textContent = "";
-
     const buttonHoverInput = document.createElement("input");
     buttonHoverInput.type = "text";
     buttonHoverInput.className = "pig-hover-input";
@@ -1685,8 +1761,7 @@
     hoverMessages.className = "pig-chat-messages";
     hoverMessages.hidden = true;
 
-    buttonStatusViewport.append(buttonStatusText);
-    buttonStatus.append(buttonStatusViewport, buttonStatusDot);
+    buttonStatus.append(buttonStatusDot);
     buttonCopy.append(buttonHoverInput, buttonStatus);
 
     const tailTip = document.createElement("span");
@@ -1717,6 +1792,12 @@
     buttonIconWrap.addEventListener("pointermove", onPointerMove);
     buttonIconWrap.addEventListener("pointerup", onPointerUp);
     buttonIconWrap.addEventListener("pointercancel", onPointerUp);
+    hoverMessages.addEventListener("scroll", handleHoverMessagesScroll, { passive: true });
+    hoverMessages.addEventListener("pointerdown", handleHoverMessagesPointerDown);
+    hoverMessages.addEventListener("pointermove", handleHoverMessagesPointerMove);
+    hoverMessages.addEventListener("pointerup", handleHoverMessagesPointerUp);
+    hoverMessages.addEventListener("pointercancel", stopHoverScrollDrag);
+    hoverMessages.addEventListener("click", handleHoverMessagesClick, true);
     buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
     window.addEventListener("resize", handleWindowResize);
 
@@ -1725,8 +1806,6 @@
       button,
       buttonLabel: null,
       buttonHoverInput,
-      buttonStatus: buttonStatusText,
-      buttonStatusViewport,
       hoverMessages,
       buttonPupils: [leftPupil, rightPupil],
       buttonEyes: [leftEye, rightEye],
@@ -1782,6 +1861,7 @@
         --pig-expand-offset: 0px;
         position: relative;
         left: 0;
+        top: 0;
         display: inline-flex;
         align-items: center;
         gap: 8px;
@@ -1803,7 +1883,8 @@
       }
 
       .pig-floating-button.is-thinking {
-        animation: pig-float 3.2s ease-in-out infinite;
+        animation: dogeclaw-breathe 2.4s ease-in-out infinite;
+        will-change: top;
       }
 
       .pig-floating-button:hover,
@@ -1828,6 +1909,7 @@
 	      .pig-floating-button.is-dragging {
 	        width: var(--pig-compact-width);
 	        left: 0;
+	        top: 0;
 	        animation-play-state: paused;
 	        transform: scale(0.98);
 	        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.24);
@@ -1961,12 +2043,15 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
-	        max-height: none;
-	        overflow-x: visible;
-	        overflow-y: visible;
+	        max-height: var(--pig-chat-max-height, calc(100vh - 96px));
+	        overflow-x: hidden;
+	        overflow-y: auto;
+	        -webkit-overflow-scrolling: touch;
 	        scrollbar-width: none;
 	        opacity: 0;
 	        pointer-events: none;
+	        cursor: default;
+	        user-select: text;
 	        transform: translateY(5px) scale(0.985);
 	        transform-origin: bottom center;
 	        transition:
@@ -1975,8 +2060,29 @@
 	        z-index: 5;
 	      }
 
+      .pig-chat-messages.is-below-button {
+        top: calc(100% + 10px);
+        bottom: auto;
+        transform-origin: top center;
+      }
+
       .pig-chat-messages::-webkit-scrollbar {
         display: none;
+      }
+
+      .pig-chat-messages.is-scrollable {
+        cursor: default;
+      }
+
+      .pig-chat-messages.is-scrollable .pig-chat-bubble {
+        cursor: grab;
+        touch-action: none;
+      }
+
+      .pig-chat-messages.is-drag-scrolling,
+      .pig-chat-messages.is-drag-scrolling .pig-chat-bubble {
+        cursor: grabbing;
+        user-select: none;
       }
 
 	      .pig-chat-messages.is-visible {
@@ -2317,34 +2423,6 @@
         white-space: nowrap;
       }
 
-      .pig-floating-button.has-status-text .pig-button-status {
-        flex: 1 1 auto;
-        max-width: 100%;
-      }
-
-      .pig-status-viewport {
-        display: none;
-        align-items: center;
-        justify-content: flex-start;
-        overflow: hidden;
-        width: 0;
-        min-width: 0;
-        max-width: 0;
-      }
-
-      .pig-floating-button.has-status-text .pig-status-viewport {
-        display: inline-flex;
-        flex: 1 1 auto;
-        width: auto;
-        max-width: 100%;
-      }
-
-      .pig-status-text {
-        display: inline-block;
-        white-space: nowrap;
-        text-align: left;
-      }
-
       .pig-hover-input {
         all: unset;
         box-sizing: border-box;
@@ -2404,20 +2482,6 @@
         pointer-events: none;
       }
 
-      .pig-status-text.is-marquee {
-        animation: pig-status-marquee var(--pig-marquee-duration, 5s) linear infinite;
-      }
-
-      @keyframes pig-status-marquee {
-        from {
-          transform: translateX(var(--pig-marquee-start, 0px));
-        }
-
-        to {
-          transform: translateX(calc(-1 * var(--pig-marquee-end, 0px)));
-        }
-      }
-
       .pig-status-dot {
         width: 8px;
         height: 8px;
@@ -2426,11 +2490,6 @@
         border-radius: 999px;
         background: #94a3b8;
         box-shadow: 0 0 10px rgba(148, 163, 184, 0.38);
-      }
-
-      .pig-floating-button.has-remote-text .pig-status-dot {
-        background: #22c55e;
-        box-shadow: 0 0 10px rgba(34, 197, 94, 0.42);
       }
 
       .pig-floating-button.is-thinking .pig-status-dot {
@@ -2452,19 +2511,14 @@
         transform: translateY(-50%) rotate(30deg);
         opacity: 0.78;
       }
-        50% {
-          opacity: 1;
-          transform: scale(1.03);
-        }
-      }
 
-      @keyframes pig-float {
+      @keyframes dogeclaw-breathe {
         0%, 100% {
-          transform: translateY(0);
+          top: 0;
         }
 
         50% {
-          transform: translateY(-6px);
+          top: -8px;
         }
       }
 
