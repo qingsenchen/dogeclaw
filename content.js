@@ -334,6 +334,7 @@
 
   let elements;
   elements = createUI();
+  anchorRootToCurrentPosition();
   const petController = window.DogeclawPet.createController({
     elements,
     state,
@@ -461,6 +462,7 @@
     if (mountTarget && !elements.root.isConnected) {
       mountTarget.append(elements.root);
       applySavedPosition();
+      anchorRootToCurrentPosition();
     }
   }
 
@@ -607,6 +609,25 @@
         persistPosition(next.left, next.top);
       }
     } catch {}
+  }
+
+  function anchorRootToCurrentPosition() {
+    if (!elements?.root?.isConnected) {
+      return;
+    }
+
+    const currentLeft = Number.parseFloat(elements.root.style.left);
+    const currentTop = Number.parseFloat(elements.root.style.top);
+    if (Number.isFinite(currentLeft) && Number.isFinite(currentTop)) {
+      return;
+    }
+
+    const rect = elements.root.getBoundingClientRect();
+    const next = clampPosition(rect.left, rect.top);
+    elements.root.style.left = `${next.left}px`;
+    elements.root.style.top = `${next.top}px`;
+    elements.root.style.right = "auto";
+    elements.root.style.bottom = "auto";
   }
 
   function persistPosition(left, top) {
