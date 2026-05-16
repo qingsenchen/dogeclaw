@@ -1,0 +1,12 @@
+importScripts(
+  "platform/extension-api.js",
+  "config.js",
+  "i18n.js",
+  "llm.js",
+  "browser.js",
+  "vendor/qrcode-generator.js",
+  "channels/wechat.js",
+  "tools.js",
+  "agent.js",
+  "background.js"
+);

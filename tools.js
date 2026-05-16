@@ -1,5 +1,6 @@
 (function () {
   const CONFIG = globalThis.OnecaiConfig || {};
+  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
   const WEATHER_TIMEOUT_MS = CONFIG.tools?.weatherTimeoutMs || 12000;
   const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
 
@@ -282,8 +283,15 @@
     };
   }
 
+  function assertExtensionApi(name, value) {
+    if (!value) {
+      throw new Error(`Extension API unavailable: ${name}`);
+    }
+  }
+
   async function getActiveHttpTab() {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    assertExtensionApi("tabs.query", PLATFORM.tabs?.query);
+    const tabs = await PLATFORM.tabs.query({ active: true, currentWindow: true });
     const tab = tabs[0];
     if (!tab?.id || !/^https?:\/\//i.test(tab.url || "")) {
       throw new Error("No controllable active tab found");
@@ -293,13 +301,14 @@
 
   async function ensureOnecaiContentScript(tab) {
     try {
-      const existing = await chrome.tabs.sendMessage(tab.id, { type: "getFloatingButtonVisible" });
+      const existing = await PLATFORM.tabs.sendMessage(tab.id, { type: "getFloatingButtonVisible" });
       if (existing?.ok) {
         return true;
       }
     } catch {}
 
-    await chrome.scripting.executeScript({
+    assertExtensionApi("scripting.executeScript", PLATFORM.scripting?.executeScript);
+    await PLATFORM.scripting.executeScript({
       target: { tabId: tab.id },
       files: CONTENT_SCRIPT_FILES
     });
@@ -309,7 +318,7 @@
   async function openLlmProviderForm() {
     const tab = await getActiveHttpTab();
     await ensureOnecaiContentScript(tab);
-    const result = await chrome.tabs.sendMessage(tab.id, {
+    const result = await PLATFORM.tabs.sendMessage(tab.id, {
       type: "openLlmProviderConfig"
     });
     if (result?.ok === false) {
@@ -373,7 +382,7 @@
   async function openChannelConfigForm(channel) {
     const tab = await getActiveHttpTab();
     await ensureOnecaiContentScript(tab);
-    const result = await chrome.tabs.sendMessage(tab.id, {
+    const result = await PLATFORM.tabs.sendMessage(tab.id, {
       type: "openChannelConfig",
       channel
     });

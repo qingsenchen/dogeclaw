@@ -1,6 +1,5 @@
-importScripts("config.js", "i18n.js", "llm.js", "browser.js", "vendor/qrcode-generator.js", "channels/wechat.js", "tools.js", "agent.js");
-
 const APP_CONFIG = globalThis.OnecaiConfig || {};
+const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
 const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
 const STORAGE_CONFIG = APP_CONFIG.storage || {};
 const CONTENT_CONFIG = APP_CONFIG.content || {};
@@ -48,7 +47,15 @@ let wechatLoginPollTimer = 0;
 let wechatLoginWaitRunning = false;
 const wechatUserConfigCache = new Map();
 
-chrome.storage?.local?.remove?.(LEGACY_CHANNEL_DEBUG_LOG_KEY)?.catch?.(() => null);
+PLATFORM.storage?.local?.remove?.(LEGACY_CHANNEL_DEBUG_LOG_KEY)?.catch?.(() => null);
+
+function getLocalStorage() {
+  const storage = PLATFORM.storage?.local;
+  if (!storage?.get || !storage?.set || !storage?.remove) {
+    throw new Error("Extension storage API unavailable");
+  }
+  return storage;
+}
 
 async function logChannelDebug(event, details = {}) {
   console.log(`[dogeclaw wechat] ${event}`, details);
@@ -96,13 +103,13 @@ function getPageStateKey(url) {
 
 async function getFloatingButtonEnabled(url) {
   const key = getPageStateKey(url);
-  const result = await chrome.storage.local.get(key);
+  const result = await getLocalStorage().get(key);
   return result[key] !== false;
 }
 
 async function setFloatingButtonEnabled(url, enabled) {
   const key = getPageStateKey(url);
-  await chrome.storage.local.set({ [key]: Boolean(enabled) });
+  await getLocalStorage().set({ [key]: Boolean(enabled) });
   return Boolean(enabled);
 }
 
@@ -112,22 +119,22 @@ function canToggleFloatingButton(url) {
 
 async function sendMessageToTab(tabId, payload) {
   try {
-    return await chrome.tabs.sendMessage(tabId, payload);
+    return await PLATFORM.tabs.sendMessage(tabId, payload);
   } catch {
     return null;
   }
 }
 
 async function setActionToggleBadge(tabId, enabled) {
-  await chrome.action.setBadgeBackgroundColor({
+  await PLATFORM.action.setBadgeBackgroundColor({
     tabId,
     color: enabled ? "#2563eb" : "#6b7280"
   });
-  await chrome.action.setBadgeText({
+  await PLATFORM.action.setBadgeText({
     tabId,
     text: enabled ? "" : "OFF"
   });
-  await chrome.action.setTitle({
+  await PLATFORM.action.setTitle({
     tabId,
     title: enabled ? t("action.hide") : t("action.show")
   });
@@ -139,7 +146,7 @@ async function ensureContentScriptInjected(tabId) {
     return true;
   }
 
-  await chrome.scripting.executeScript({
+  await PLATFORM.scripting.executeScript({
     target: { tabId },
     files: CONTENT_SCRIPT_FILES
   });
@@ -147,12 +154,12 @@ async function ensureContentScriptInjected(tabId) {
 }
 
 async function getSavedImages() {
-  const result = await chrome.storage.local.get(SAVED_IMAGES_KEY);
+  const result = await getLocalStorage().get(SAVED_IMAGES_KEY);
   return Array.isArray(result[SAVED_IMAGES_KEY]) ? result[SAVED_IMAGES_KEY] : [];
 }
 
 async function setSavedImages(items) {
-  await chrome.storage.local.set({
+  await getLocalStorage().set({
     [SAVED_IMAGES_KEY]: items.slice(0, MAX_SAVED_IMAGES)
   });
 }
@@ -166,7 +173,7 @@ async function recordSavedImage(item) {
 }
 
 async function clearSavedImages() {
-  await chrome.storage.local.remove(SAVED_IMAGES_KEY);
+  await getLocalStorage().remove(SAVED_IMAGES_KEY);
   return [];
 }
 
@@ -209,7 +216,7 @@ async function uploadError(payload = {}) {
 }
 
 async function checkForUpdates(reason = "manual") {
-  const manifest = chrome.runtime.getManifest();
+  const manifest = PLATFORM.runtime?.getManifest ? PLATFORM.runtime.getManifest() : {};
   return {
     enabled: false,
     reachable: false,
@@ -231,27 +238,27 @@ async function getRemoteStatus() {
 }
 
 function createContextMenus() {
-  if (!chrome.contextMenus?.create) {
+  if (!PLATFORM.contextMenus?.create) {
     return;
   }
 
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
+  PLATFORM.contextMenus.removeAll().then(() => {
+    return PLATFORM.contextMenus.create({
       id: SEND_SELECTION_MENU_ID,
       title: t("context.sendSelection"),
       contexts: ["selection"]
     });
-  });
+  }).catch((error) => console.warn("Failed to create context menu:", error));
 }
 
 function stopCommandPolling() {
-  chrome.alarms?.clear?.(COMMAND_POLL_ALARM);
+  PLATFORM.alarms?.clear?.(COMMAND_POLL_ALARM)?.catch?.(() => null);
 }
 
 function startChannelPolling() {
-  chrome.alarms?.create?.(CHANNEL_POLL_ALARM, {
+  PLATFORM.alarms?.create?.(CHANNEL_POLL_ALARM, {
     periodInMinutes: CHANNEL_ALARM_PERIOD_MINUTES
-  });
+  })?.catch?.((error) => console.warn("Failed to start channel polling:", error));
   logChannelDebug("alarm scheduled", { periodInMinutes: CHANNEL_ALARM_PERIOD_MINUTES });
 }
 
@@ -403,25 +410,25 @@ async function shouldKeepFastChannelPolling() {
 }
 
 async function getChannelHistory(channel, conversationId) {
-  const result = await chrome.storage.local.get(CHANNEL_HISTORY_KEY);
+  const result = await getLocalStorage().get(CHANNEL_HISTORY_KEY);
   const all = result[CHANNEL_HISTORY_KEY] && typeof result[CHANNEL_HISTORY_KEY] === "object" ? result[CHANNEL_HISTORY_KEY] : {};
   const key = `${channel}:${conversationId}`;
   return Array.isArray(all[key]) ? all[key] : [];
 }
 
 async function setChannelHistory(channel, conversationId, history) {
-  const result = await chrome.storage.local.get(CHANNEL_HISTORY_KEY);
+  const result = await getLocalStorage().get(CHANNEL_HISTORY_KEY);
   const all = result[CHANNEL_HISTORY_KEY] && typeof result[CHANNEL_HISTORY_KEY] === "object" ? result[CHANNEL_HISTORY_KEY] : {};
   const key = `${channel}:${conversationId}`;
   all[key] = history.slice(-CHANNEL_HISTORY_LIMIT);
-  await chrome.storage.local.set({ [CHANNEL_HISTORY_KEY]: all });
+  await getLocalStorage().set({ [CHANNEL_HISTORY_KEY]: all });
 }
 
 async function hasSeenChannelMessage(messageId) {
   if (!messageId) {
     return false;
   }
-  const result = await chrome.storage.local.get(CHANNEL_SEEN_KEY);
+  const result = await getLocalStorage().get(CHANNEL_SEEN_KEY);
   const seen = Array.isArray(result[CHANNEL_SEEN_KEY]) ? result[CHANNEL_SEEN_KEY] : [];
   return seen.includes(messageId);
 }
@@ -430,11 +437,11 @@ async function markSeenChannelMessage(messageId) {
   if (!messageId) {
     return;
   }
-  const result = await chrome.storage.local.get(CHANNEL_SEEN_KEY);
+  const result = await getLocalStorage().get(CHANNEL_SEEN_KEY);
   const seen = Array.isArray(result[CHANNEL_SEEN_KEY]) ? result[CHANNEL_SEEN_KEY] : [];
   const next = seen.filter((item) => item !== messageId);
   next.push(messageId);
-  await chrome.storage.local.set({ [CHANNEL_SEEN_KEY]: next.slice(-CHANNEL_SEEN_LIMIT) });
+  await getLocalStorage().set({ [CHANNEL_SEEN_KEY]: next.slice(-CHANNEL_SEEN_LIMIT) });
 }
 
 function getUpdateList(payload) {
@@ -503,7 +510,7 @@ function normalizeWechatUpdate(update = {}) {
 }
 
 async function sendChannelConfigStatusToTabs(channel, status) {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tabs = await PLATFORM.tabs.query({ active: true, currentWindow: true });
   await Promise.all(
     tabs.map(async (tab) => {
       if (!tab.id || !canToggleFloatingButton(tab.url || "")) {
@@ -866,20 +873,20 @@ async function pollChannels() {
   }
 }
 
-chrome.runtime.onInstalled.addListener((details) => {
+PLATFORM.runtime?.onInstalled?.addListener((details) => {
   createContextMenus();
   stopCommandPolling();
   startChannelPolling();
 });
 
-chrome.runtime.onStartup.addListener(() => {
+PLATFORM.runtime?.onStartup?.addListener(() => {
   createContextMenus();
   stopCommandPolling();
   startChannelPolling();
 });
 
-if (chrome.alarms?.onAlarm) {
-  chrome.alarms.onAlarm.addListener((alarm) => {
+if (PLATFORM.alarms?.onAlarm) {
+  PLATFORM.alarms.onAlarm.addListener((alarm) => {
     if (alarm?.name === CHANNEL_POLL_ALARM) {
       pollChannels();
     }
@@ -919,7 +926,7 @@ self.addEventListener("unhandledrejection", (event) => {
   });
 });
 
-chrome.action.onClicked.addListener(async (tab) => {
+PLATFORM.action?.onClicked?.addListener(async (tab) => {
   if (!tab.id || !tab.url) {
     return;
   }
@@ -972,8 +979,8 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-if (chrome.contextMenus?.onClicked) {
-  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+if (PLATFORM.contextMenus?.onClicked) {
+  PLATFORM.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId !== SEND_SELECTION_MENU_ID) {
       return;
     }
@@ -1030,7 +1037,7 @@ if (chrome.contextMenus?.onClicked) {
   });
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+PLATFORM.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
   if (message?.type === "getFloatingButtonEnabled" && message.url) {
     getFloatingButtonEnabled(message.url)
       .then((enabled) => sendResponse({ ok: true, enabled }))
@@ -1243,43 +1250,42 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
       }
 
-      chrome.downloads.download(
-        {
-          url: downloadUrl,
-          filename,
-          conflictAction: "uniquify",
-          saveAs: false
-        },
-        async (downloadId) => {
-          if (chrome.runtime.lastError || typeof downloadId !== "number") {
-            sendResponse({
-              ok: false,
-              error: chrome.runtime.lastError?.message || "download failed"
-            });
-            return;
-          }
+      if (!PLATFORM.downloads?.download) {
+        sendResponse({ ok: false, error: "Extension downloads API unavailable" });
+        return;
+      }
 
-          const savedItem = {
-            id: `${Date.now()}-${downloadId}`,
-            url: message.url,
-            previewDataUrl: previewDataUrl || "",
-            width: message.width || null,
-            height: message.height || null,
-            format,
-            hostname: message.hostname || "",
-            filename,
-            savedAt: Date.now()
-          };
+      const downloadId = await PLATFORM.downloads.download({
+        url: downloadUrl,
+        filename,
+        conflictAction: "uniquify",
+        saveAs: false
+      });
 
-          const items = await recordSavedImage(savedItem);
-          sendResponse({
-            ok: true,
-            downloadId,
-            item: savedItem,
-            items
-          });
-        }
-      );
+      if (typeof downloadId !== "number") {
+        sendResponse({ ok: false, error: "download failed" });
+        return;
+      }
+
+      const savedItem = {
+        id: `${Date.now()}-${downloadId}`,
+        url: message.url,
+        previewDataUrl: previewDataUrl || "",
+        width: message.width || null,
+        height: message.height || null,
+        format,
+        hostname: message.hostname || "",
+        filename,
+        savedAt: Date.now()
+      };
+
+      const items = await recordSavedImage(savedItem);
+      sendResponse({
+        ok: true,
+        downloadId,
+        item: savedItem,
+        items
+      });
     })().catch((error) => {
       sendResponse({
         ok: false,
@@ -1319,7 +1325,7 @@ function normalizeAgentStepForPort(step = {}) {
   };
 }
 
-chrome.runtime.onConnect.addListener((port) => {
+PLATFORM.runtime?.onConnect?.addListener((port) => {
   if (port.name !== "chatWithPetStream") {
     return;
   }

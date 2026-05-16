@@ -1,0 +1,22 @@
+{
+  "background": {
+    "scripts": [
+      "platform/extension-api.js",
+      "config.js",
+      "i18n.js",
+      "llm.js",
+      "browser.js",
+      "vendor/qrcode-generator.js",
+      "channels/wechat.js",
+      "tools.js",
+      "agent.js",
+      "background.js"
+    ]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "dogeclaw@qingsenchen.github.io",
+      "strict_min_version": "109.0"
+    }
+  }
+}

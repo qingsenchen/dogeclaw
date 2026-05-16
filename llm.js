@@ -1,5 +1,6 @@
 (function () {
   const CONFIG = globalThis.OnecaiConfig || {};
+  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
   const LLM_CONFIG = CONFIG.llm || {};
   const LLM_CONFIG_KEY = CONFIG.storage?.llmConfigKey || "onecai-llm-config";
   const LLM_TIMEOUT_MS = LLM_CONFIG.timeoutMs || 120000;
@@ -13,6 +14,14 @@
     systemPrompt: t("system.prompt")
   };
   const DEBUG_LLM = LLM_CONFIG.debug === true;
+
+  function getLocalStorage() {
+    const storage = PLATFORM.storage?.local;
+    if (!storage?.get || !storage?.set) {
+      throw new Error("Extension storage API unavailable");
+    }
+    return storage;
+  }
 
   function cloneForLog(value) {
     try {
@@ -54,7 +63,7 @@
   }
 
   async function getConfig() {
-    const result = await chrome.storage.local.get(LLM_CONFIG_KEY);
+    const result = await getLocalStorage().get(LLM_CONFIG_KEY);
     const stored = result[LLM_CONFIG_KEY] && typeof result[LLM_CONFIG_KEY] === "object" ? result[LLM_CONFIG_KEY] : {};
     const model = String(stored.model || "").trim() || DEFAULT_CONFIG.model;
     const apiBase = String(stored.apiBase || "").trim() || DEFAULT_CONFIG.apiBase;
@@ -72,7 +81,7 @@
   }
 
   async function getConfigStatus() {
-    const result = await chrome.storage.local.get(LLM_CONFIG_KEY);
+    const result = await getLocalStorage().get(LLM_CONFIG_KEY);
     const stored = result[LLM_CONFIG_KEY] && typeof result[LLM_CONFIG_KEY] === "object" ? result[LLM_CONFIG_KEY] : {};
     const config = await getConfig();
     const userConfigured = Boolean(
@@ -95,7 +104,7 @@
     };
 
     next.model = resolveModel(next.model);
-    await chrome.storage.local.set({ [LLM_CONFIG_KEY]: next });
+    await getLocalStorage().set({ [LLM_CONFIG_KEY]: next });
     return next;
   }
 

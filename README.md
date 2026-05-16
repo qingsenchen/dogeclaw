@@ -131,6 +131,7 @@ dogeclaw requests the following Chrome extension permissions:
 - `alarms`: schedule polling tasks
 - `tabs`: coordinate page-level assistant state and browser actions
 - `contextMenus`: add selected-text actions to the right-click menu
+- `downloads`: save user-selected page assets when download actions are used
 - `<all_urls>` host access: load the assistant UI across web pages
 
 Content you send to dogeclaw, including typed messages, selected text, page context, screenshots, or tool results, may be sent to the LLM provider you configure. Review your provider's data policy before sending sensitive information.
@@ -141,11 +142,16 @@ No API key is included in this repository. Store only your own key locally throu
 
 ```text
 .
-├── manifest.json              # Chrome Manifest V3 extension manifest
+├── manifest.json              # Chrome development manifest
+├── manifest/                  # Target-specific manifest templates
+├── scripts/build-extension.mjs # Chrome, Edge, and Firefox build script
 ├── _locales/                  # Chrome WebExtension locale messages
+├── platform/
+│   └── extension-api.js       # Cross-browser extension API adapter
 ├── config.js                  # Runtime defaults and storage keys
 ├── i18n.js                    # Runtime localization dictionaries and helpers
 ├── background.js              # Service worker, agent routing, tools, channels
+├── background-loader.js       # Chrome/Edge service worker script loader
 ├── content.js                 # In-page assistant UI and page bridge
 ├── ui.js                      # Shared UI rendering helpers
 ├── pet.js                     # Floating pet animation and interaction logic
@@ -162,24 +168,47 @@ No API key is included in this repository. Store only your own key locally throu
 
 ## Development
 
+### Local Browser Loading
+
+Chrome and Edge can load the repository root directly during daily development because the root `manifest.json` is a Chromium MV3 development manifest.
+
+- Chrome: open `chrome://extensions/`, enable Developer mode, choose Load unpacked, and select the repository root.
+- Edge: open `edge://extensions/`, enable Developer mode, choose Load unpacked, and select the repository root.
+
+After changing files, reload the extension from the browser extensions page and refresh the page you are testing.
+
+Firefox should use the generated Firefox build because it needs a different background loading shape. Run:
+
+```sh
+npm run build:firefox
+```
+
+Then open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select `dist/firefox/manifest.json`. After changes, rebuild Firefox and reload the temporary add-on.
+
+Build target-specific extension directories:
+
+```sh
+npm run build:chrome
+npm run build:edge
+npm run build:firefox
+```
+
+Generated builds are written to `dist/<target>`. The root `manifest.json` remains convenient for local Chrome development, while the generated manifests keep browser-specific background loading and compatibility differences separate.
+
 Run JavaScript syntax checks:
 
 ```sh
-node --check background.js
-node --check channels/wechat.js
-node --check content.js
-node --check llm.js
+npm run check
 ```
 
 Recommended release checks before publishing:
 
 ```sh
 rg -n "apiKey|secret|token|password|Authorization|Bearer|sk-" .
-node --check background.js
-node --check channels/wechat.js
-node --check content.js
-node --check llm.js
+npm run check
 ```
+
+When adding browser APIs, call them through `platform/extension-api.js` instead of directly using `chrome.*` or `browser.*` in feature modules. This keeps Chrome, Edge, and Firefox compatibility work contained in the platform layer and manifest templates.
 
 The repository intentionally avoids committing local credentials, build artifacts, browser extension packages, and environment files.
 

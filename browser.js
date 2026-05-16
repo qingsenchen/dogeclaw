@@ -1,5 +1,6 @@
 (function () {
   const CONFIG = globalThis.OnecaiConfig || {};
+  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
   const BROWSER_CONFIG = CONFIG.browser || {};
   const BROWSER_ACTION_TIMEOUT_MS = BROWSER_CONFIG.actionTimeoutMs || 10000;
   const MAX_SNAPSHOT_ITEMS = BROWSER_CONFIG.maxSnapshotItems || 80;
@@ -9,9 +10,9 @@
   const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
   const browserArtifacts = [];
 
-  function assertChromeApi(name, value) {
+  function assertExtensionApi(name, value) {
     if (!value) {
-      throw new Error(`Chrome API unavailable: ${name}`);
+      throw new Error(`Extension API unavailable: ${name}`);
     }
   }
 
@@ -50,13 +51,13 @@
   }
 
   async function getActiveTab() {
-    assertChromeApi("chrome.tabs.query", chrome.tabs?.query);
-    let tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    assertExtensionApi("tabs.query", PLATFORM.tabs?.query);
+    let tabs = await PLATFORM.tabs.query({ active: true, currentWindow: true });
     if (!tabs.length) {
-      tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      tabs = await PLATFORM.tabs.query({ active: true, lastFocusedWindow: true });
     }
     if (!tabs.length) {
-      tabs = await chrome.tabs.query({ active: true });
+      tabs = await PLATFORM.tabs.query({ active: true });
     }
     const tab = tabs.find((item) => /^https?:\/\//i.test(item.url || item.pendingUrl || "")) || tabs[0];
     if (!tab?.id) {
@@ -68,8 +69,8 @@
   async function getTargetTab(args = {}) {
     const tabId = Number(args.tabId || args.id || 0);
     if (Number.isInteger(tabId) && tabId > 0) {
-      assertChromeApi("chrome.tabs.get", chrome.tabs?.get);
-      const tab = await chrome.tabs.get(tabId);
+      assertExtensionApi("tabs.get", PLATFORM.tabs?.get);
+      const tab = await PLATFORM.tabs.get(tabId);
       if (!tab?.id) {
         throw new Error(`Tab not found: ${tabId}`);
       }
@@ -79,29 +80,29 @@
   }
 
   async function activateTab(tab) {
-    assertChromeApi("chrome.tabs.update", chrome.tabs?.update);
+    assertExtensionApi("tabs.update", PLATFORM.tabs?.update);
     if (!tab?.id) {
       throw new Error("tab id is required");
     }
     if (!tab.active) {
-      await chrome.tabs.update(tab.id, { active: true });
+      await PLATFORM.tabs.update(tab.id, { active: true });
     }
-    if (tab.windowId && chrome.windows?.update) {
-      await chrome.windows.update(tab.windowId, { focused: true }).catch(() => null);
+    if (tab.windowId && PLATFORM.windows?.update) {
+      await PLATFORM.windows.update(tab.windowId, { focused: true }).catch(() => null);
     }
-    return chrome.tabs.get(tab.id);
+    return PLATFORM.tabs.get(tab.id);
   }
 
   async function waitForTabComplete(tabId, timeoutMs = BROWSER_ACTION_TIMEOUT_MS) {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
-      const tab = await chrome.tabs.get(tabId);
+      const tab = await PLATFORM.tabs.get(tabId);
       if (tab.status === "complete") {
         return tab;
       }
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
-    return chrome.tabs.get(tabId);
+    return PLATFORM.tabs.get(tabId);
   }
 
   function canAccessTabUrl(url) {
@@ -117,13 +118,14 @@
     }
 
     try {
-      const existing = await chrome.tabs.sendMessage(tab.id, { type: "onecaiBrowserPing" });
+      const existing = await PLATFORM.tabs.sendMessage(tab.id, { type: "onecaiBrowserPing" });
       if (existing?.ok) {
         return true;
       }
     } catch {}
 
-    await chrome.scripting.executeScript({
+    assertExtensionApi("scripting.executeScript", PLATFORM.scripting?.executeScript);
+    await PLATFORM.scripting.executeScript({
       target: { tabId: tab.id },
       files: CONTENT_SCRIPT_FILES
     });
@@ -132,7 +134,7 @@
 
   async function sendToTab(tab, payload) {
     await ensureTabScript(tab);
-    const result = await withTimeout(chrome.tabs.sendMessage(tab.id, payload));
+    const result = await withTimeout(PLATFORM.tabs.sendMessage(tab.id, payload));
     if (result?.ok === false) {
       throw new Error(result.error || "browser action failed");
     }
@@ -140,8 +142,8 @@
   }
 
   async function listTabs() {
-    assertChromeApi("chrome.tabs.query", chrome.tabs?.query);
-    const tabs = await chrome.tabs.query({});
+    assertExtensionApi("tabs.query", PLATFORM.tabs?.query);
+    const tabs = await PLATFORM.tabs.query({});
     return tabs.map((tab) => ({
       id: tab.id,
       active: Boolean(tab.active),
@@ -170,12 +172,12 @@
 
     const tab = await getActiveTab();
     const targetUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    await chrome.tabs.update(tab.id, { url: targetUrl });
+    await PLATFORM.tabs.update(tab.id, { url: targetUrl });
     return { tabId: tab.id, url: targetUrl };
   }
 
   async function newTab(args = {}) {
-    assertChromeApi("chrome.tabs.create", chrome.tabs?.create);
+    assertExtensionApi("tabs.create", PLATFORM.tabs?.create);
     const rawUrl = String(args.url || "").trim();
     const createProperties = {
       active: args.active !== false
@@ -185,7 +187,7 @@
       createProperties.url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
     }
 
-    const tab = await chrome.tabs.create(createProperties);
+    const tab = await PLATFORM.tabs.create(createProperties);
     return {
       id: tab.id,
       title: tab.title || "",
@@ -199,16 +201,16 @@
     const tab = await getActiveTab();
     const direction = String(args.direction || "back").toLowerCase();
     if (direction === "forward") {
-      await chrome.tabs.goForward(tab.id);
+      await PLATFORM.tabs.goForward(tab.id);
       return { tabId: tab.id, direction: "forward" };
     }
-    await chrome.tabs.goBack(tab.id);
+    await PLATFORM.tabs.goBack(tab.id);
     return { tabId: tab.id, direction: "back" };
   }
 
   async function reload() {
     const tab = await getActiveTab();
-    await chrome.tabs.reload(tab.id);
+    await PLATFORM.tabs.reload(tab.id);
     return { tabId: tab.id };
   }
 
@@ -227,7 +229,7 @@
 
   async function setCaptureMode(tab, hidden) {
     try {
-      await chrome.tabs.sendMessage(tab.id, {
+      await PLATFORM.tabs.sendMessage(tab.id, {
         type: "onecaiCaptureMode",
         hidden: Boolean(hidden)
       });
@@ -236,7 +238,7 @@
 
   async function showScreenshotInChat(tab, artifact) {
     try {
-      const response = await chrome.tabs.sendMessage(tab.id, {
+      const response = await PLATFORM.tabs.sendMessage(tab.id, {
         type: "onecaiToolArtifact",
         artifact
       });
@@ -247,7 +249,7 @@
   }
 
   async function screenshot(args = {}) {
-    assertChromeApi("chrome.tabs.captureVisibleTab", chrome.tabs?.captureVisibleTab);
+    assertExtensionApi("tabs.captureVisibleTab", PLATFORM.tabs?.captureVisibleTab);
 
     let tab = await getTargetTab(args);
     if (!tab?.id || !tab.windowId) {
@@ -277,7 +279,7 @@
 
     let dataUrl = "";
     try {
-      dataUrl = await withTimeout(chrome.tabs.captureVisibleTab(tab.windowId, captureOptions));
+      dataUrl = await withTimeout(PLATFORM.tabs.captureVisibleTab(tab.windowId, captureOptions));
     } finally {
       if (args.includeOnecaiUi !== true) {
         await setCaptureMode(tab, false);

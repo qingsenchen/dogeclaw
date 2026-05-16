@@ -1,4 +1,5 @@
 (function () {
+  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
   const MAX_DEFAULT_IMAGES = 120;
   const MAX_AMAZON_IMAGES = 140;
   const MAX_TMALL_IMAGES = 180;
@@ -17,6 +18,14 @@
     "[srcset]",
     "[data-srcset]"
   ].join(", ");
+
+  function sendRuntimeMessage(payload) {
+    if (PLATFORM.runtime?.sendMessage) {
+      return PLATFORM.runtime.sendMessage(payload);
+    }
+    const runtime = globalThis.chrome?.runtime;
+    return runtime ? runtime.sendMessage(payload) : Promise.resolve(null);
+  }
 
   function createFilterConfig(overrides = {}) {
     const basePresets = [
@@ -394,7 +403,7 @@
       }
 
       try {
-        const response = await chrome.runtime.sendMessage({
+        const response = await sendRuntimeMessage({
           type: "fetchText",
           url: descUrl
         });
@@ -632,7 +641,7 @@
       }
 
       try {
-        const response = await chrome.runtime.sendMessage({
+        const response = await sendRuntimeMessage({
           type: "fetchText",
           url: detailUrl
         });
@@ -803,7 +812,7 @@
 
       const ar5ivUrl = `https://ar5iv.labs.arxiv.org/html/${arxivId}`;
       try {
-        const response = await chrome.runtime.sendMessage({
+        const response = await sendRuntimeMessage({
           type: "fetchText",
           url: ar5ivUrl
         });

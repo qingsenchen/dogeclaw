@@ -131,6 +131,7 @@ dogeclaw は以下の Chrome 拡張機能 permissions を要求します。
 - `alarms`: ポーリングタスクをスケジュールするため
 - `tabs`: ページ単位のアシスタント状態とブラウザ操作を調整するため
 - `contextMenus`: 選択テキスト用の右クリックメニューを追加するため
+- `downloads`: ダウンロード操作でユーザーが選択したページ資産を保存するため
 - `<all_urls>` host access: Web ページ上でアシスタント UI を読み込むため
 
 dogeclaw に送信した内容、入力メッセージ、選択テキスト、ページコンテキスト、スクリーンショット、ツール結果などは、設定した LLM Provider に送信される場合があります。機密情報を送る前に、利用するプロバイダーのデータポリシーを確認してください。
@@ -141,11 +142,16 @@ dogeclaw に送信した内容、入力メッセージ、選択テキスト、�
 
 ```text
 .
-├── manifest.json              # Chrome Manifest V3 extension manifest
+├── manifest.json              # Chrome local development manifest
+├── manifest/                  # Browser target-specific manifest templates
+├── scripts/build-extension.mjs # Chrome, Edge, and Firefox build script
 ├── _locales/                  # Chrome WebExtension locale messages
+├── platform/
+│   └── extension-api.js       # Cross-browser extension API adapter
 ├── config.js                  # Runtime defaults and storage keys
 ├── i18n.js                    # Runtime localization dictionaries and helpers
-├── background.js              # Service worker, agent routing, tools, channels
+├── background.js              # Background agent routing, tools, channels
+├── background-loader.js       # Chrome/Edge Service Worker script loader
 ├── content.js                 # In-page assistant UI and page bridge
 ├── ui.js                      # Shared UI rendering helpers
 ├── pet.js                     # Floating pet animation and interaction logic
@@ -162,24 +168,47 @@ dogeclaw に送信した内容、入力メッセージ、選択テキスト、�
 
 ## Development
 
+### Local Browser Loading
+
+Chrome と Edge の日常開発では、リポジトリのルートディレクトリを直接読み込めます。ルートの `manifest.json` は Chromium MV3 開発用 manifest です。
+
+- Chrome: `chrome://extensions/` を開き、Developer mode を有効にして Load unpacked からリポジトリルートを選択します。
+- Edge: `edge://extensions/` を開き、Developer mode を有効にして Load unpacked からリポジトリルートを選択します。
+
+ファイルを変更した後は、ブラウザの拡張機能ページで拡張機能を reload し、テスト対象ページも更新してください。
+
+Firefox は background loading の形が異なるため、生成された Firefox build を使うことを推奨します。
+
+```sh
+npm run build:firefox
+```
+
+その後 `about:debugging#/runtime/this-firefox` を開き、Load Temporary Add-on から `dist/firefox/manifest.json` を選択します。変更後は Firefox build を再生成し、一時アドオンを reload してください。
+
+ブラウザ別の拡張機能ディレクトリをビルドします。
+
+```sh
+npm run build:chrome
+npm run build:edge
+npm run build:firefox
+```
+
+生成物は `dist/<target>` に出力されます。ルートの `manifest.json` は Chrome のローカル開発用として残し、生成される manifest でブラウザごとの background loading と互換性差分を分離します。
+
 JavaScript 構文チェックを実行します。
 
 ```sh
-node --check background.js
-node --check channels/wechat.js
-node --check content.js
-node --check llm.js
+npm run check
 ```
 
 公開前には以下のチェックを推奨します。
 
 ```sh
 rg -n "apiKey|secret|token|password|Authorization|Bearer|sk-" .
-node --check background.js
-node --check channels/wechat.js
-node --check content.js
-node --check llm.js
+npm run check
 ```
+
+Browser API を追加する場合は、機能モジュールから `chrome.*` や `browser.*` を直接呼ばず、`platform/extension-api.js` を経由してください。Chrome、Edge、Firefox の互換性対応を platform layer と manifest templates に集約できます。
 
 このリポジトリでは、ローカル認証情報、ビルド成果物、ブラウザ拡張機能パッケージ、環境ファイルをコミットしない方針です。
 

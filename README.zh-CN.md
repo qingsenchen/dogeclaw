@@ -131,6 +131,7 @@ dogeclaw 会请求以下 Chrome 扩展权限：
 - `alarms`: 调度轮询任务
 - `tabs`: 协调页面级助手状态和浏览器操作
 - `contextMenus`: 添加选中文本相关的右键菜单
+- `downloads`: 在使用下载动作时保存用户选择的页面资源
 - `<all_urls>` host access: 在网页中加载助手 UI
 
 你发送给 dogeclaw 的内容，包括输入消息、选中文本、页面上下文、截图或工具结果，可能会发送到你配置的 LLM Provider。发送敏感信息前，请先确认服务商的数据政策。
@@ -141,11 +142,16 @@ dogeclaw 会请求以下 Chrome 扩展权限：
 
 ```text
 .
-├── manifest.json              # Chrome Manifest V3 扩展清单
+├── manifest.json              # Chrome 本地开发扩展清单
+├── manifest/                  # 不同浏览器目标的 manifest 模板
+├── scripts/build-extension.mjs # Chrome、Edge、Firefox 构建脚本
 ├── _locales/                  # Chrome WebExtension 本地化消息
+├── platform/
+│   └── extension-api.js       # 跨浏览器扩展 API 适配层
 ├── config.js                  # 运行时默认值和存储 Key
 ├── i18n.js                    # 运行时本地化字典和辅助函数
-├── background.js              # Service worker、agent 路由、工具和频道
+├── background.js              # 后台 agent 路由、工具和频道
+├── background-loader.js       # Chrome/Edge Service Worker 脚本加载器
 ├── content.js                 # 页面内助手 UI 和页面桥接
 ├── ui.js                      # 共享 UI 渲染辅助
 ├── pet.js                     # 悬浮宠物动画和交互逻辑
@@ -162,24 +168,47 @@ dogeclaw 会请求以下 Chrome 扩展权限：
 
 ## 开发
 
+### 本地浏览器加载方式
+
+Chrome 和 Edge 日常开发可以直接加载仓库根目录，因为根目录的 `manifest.json` 是 Chromium MV3 开发用 manifest。
+
+- Chrome: 打开 `chrome://extensions/`，启用“开发者模式”，点击“加载已解压的扩展”，选择仓库根目录。
+- Edge: 打开 `edge://extensions/`，启用“开发人员模式”，点击“加载解压缩的扩展”，选择仓库根目录。
+
+修改文件后，在浏览器扩展管理页点击重新加载扩展，并刷新正在测试的网页。
+
+Firefox 建议使用生成后的 Firefox 构建产物，因为它需要不同的后台加载方式。执行：
+
+```sh
+npm run build:firefox
+```
+
+然后打开 `about:debugging#/runtime/this-firefox`，点击 “Load Temporary Add-on”，选择 `dist/firefox/manifest.json`。修改文件后，需要重新构建 Firefox 产物并重新加载临时扩展。
+
+构建不同浏览器目标的扩展目录：
+
+```sh
+npm run build:chrome
+npm run build:edge
+npm run build:firefox
+```
+
+构建产物会写入 `dist/<target>`。根目录的 `manifest.json` 继续用于 Chrome 本地开发加载，生成的 manifest 用于隔离不同浏览器的后台加载方式和兼容性差异。
+
 运行 JavaScript 语法检查：
 
 ```sh
-node --check background.js
-node --check channels/wechat.js
-node --check content.js
-node --check llm.js
+npm run check
 ```
 
 发布前建议检查：
 
 ```sh
 rg -n "apiKey|secret|token|password|Authorization|Bearer|sk-" .
-node --check background.js
-node --check channels/wechat.js
-node --check content.js
-node --check llm.js
+npm run check
 ```
+
+新增浏览器 API 时，请通过 `platform/extension-api.js` 调用，不要在功能模块里直接使用 `chrome.*` 或 `browser.*`。这样 Chrome、Edge、Firefox 的兼容性工作可以集中在平台层和 manifest 模板里。
 
 仓库会避免提交本地凭证、构建产物、浏览器扩展包和环境文件。
 

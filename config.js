@@ -19,7 +19,7 @@
       rootId: "onecai-root",
       legacyRootIds: ["page-image-gallery-root"],
       styleId: "onecai-style",
-      scriptFiles: ["config.js", "i18n.js", "pet.js", "ui.js", "content.js"],
+      scriptFiles: ["platform/extension-api.js", "config.js", "i18n.js", "pet.js", "ui.js", "content.js"],
       maxHoverMessages: 6,
       mountWatchdogIntervalMs: 1000,
       positionKeyPrefix: "onecai-position:"

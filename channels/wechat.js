@@ -1,6 +1,7 @@
 (function () {
   const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
   const CONFIG = globalThis.OnecaiConfig || {};
+  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
   const WECHAT_CONFIG = CONFIG.wechat || {};
   const CDN_BASE_URL = WECHAT_CONFIG.cdnBaseUrl || "https://novac2c.cdn.weixin.qq.com/c2c";
   const MEDIA_MAX_BYTES = WECHAT_CONFIG.mediaMaxBytes || 100 * 1024 * 1024;
@@ -1047,8 +1048,16 @@
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
+  function getLocalStorage() {
+    const storage = PLATFORM.storage?.local;
+    if (!storage?.get || !storage?.set) {
+      throw new Error("Extension storage API unavailable");
+    }
+    return storage;
+  }
+
   async function getConfig({ masked = false } = {}) {
-    const result = await chrome.storage.local.get(CONFIG_KEY);
+    const result = await getLocalStorage().get(CONFIG_KEY);
     const stored = result[CONFIG_KEY] && typeof result[CONFIG_KEY] === "object" ? result[CONFIG_KEY] : {};
     const storedAppId = String(stored.appId || "").trim();
     const legacyAccountId = storedAppId && storedAppId !== DEFAULT_ILINK_APP_ID && !stored.accountId ? storedAppId : "";
@@ -1065,7 +1074,7 @@
     };
 
     if (!stored.uin || !isValidUin(stored.uin) || legacyAccountId) {
-      await chrome.storage.local.set({ [CONFIG_KEY]: config });
+      await getLocalStorage().set({ [CONFIG_KEY]: config });
     }
 
     return masked
@@ -1096,12 +1105,12 @@
     next.accountId = String(next.accountId || "").trim();
     next.uin = String(next.uin || "").trim() || current.uin || createUin();
 
-    await chrome.storage.local.set({ [CONFIG_KEY]: next });
+    await getLocalStorage().set({ [CONFIG_KEY]: next });
     return getConfig({ masked: true });
   }
 
   async function getState() {
-    const result = await chrome.storage.local.get(STATE_KEY);
+    const result = await getLocalStorage().get(STATE_KEY);
     const state = result[STATE_KEY] && typeof result[STATE_KEY] === "object" ? result[STATE_KEY] : {};
     return {
       getUpdatesBuf: state.getUpdatesBuf || state.cursor || "",
@@ -1119,12 +1128,12 @@
     };
     delete next.cursor;
     delete next.get_updates_buf;
-    await chrome.storage.local.set({ [STATE_KEY]: next });
+    await getLocalStorage().set({ [STATE_KEY]: next });
     return next;
   }
 
   async function getLoginState() {
-    const result = await chrome.storage.local.get(LOGIN_KEY);
+    const result = await getLocalStorage().get(LOGIN_KEY);
     const state = result[LOGIN_KEY] && typeof result[LOGIN_KEY] === "object" ? result[LOGIN_KEY] : {};
     const login = {
       qrcode: state.qrcode || "",
@@ -1150,7 +1159,7 @@
       ...state,
       updatedAt: Date.now()
     };
-    await chrome.storage.local.set({ [LOGIN_KEY]: next });
+    await getLocalStorage().set({ [LOGIN_KEY]: next });
     return next;
   }
 

@@ -1,0 +1,12 @@
+{
+  "name": "dogeclaw",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:chrome": "node scripts/build-extension.mjs chrome",
+    "build:edge": "node scripts/build-extension.mjs edge",
+    "build:firefox": "node scripts/build-extension.mjs firefox",
+    "check": "node --check platform/extension-api.js && node --check background-loader.js && node --check background.js && node --check channels/wechat.js && node --check content.js && node --check llm.js && node --check browser.js && node --check tools.js && node --check agent.js && node --check scripts/build-extension.mjs"
+  }
+}

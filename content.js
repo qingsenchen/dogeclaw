@@ -11,6 +11,7 @@
   const MOUNT_WATCHDOG_INTERVAL = CONTENT_CONFIG.mountWatchdogIntervalMs || 1000;
   const POSITION_KEY = `${CONTENT_CONFIG.positionKeyPrefix || "onecai-position:"}${location.host}`;
   const LLM_DEFAULT_CONFIG = globalThis.OnecaiConfig?.llm?.defaultConfig || {};
+  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
   const FLOATING_BUTTON_COMPACT_WIDTH = 132;
   const FLOATING_BUTTON_EDGE_PADDING = 8;
   const DRAG_START_THRESHOLD = 4;
@@ -303,7 +304,7 @@
 
   function isRuntimeContextValid() {
     try {
-      return Boolean(globalThis.chrome?.runtime?.id);
+      return Boolean(PLATFORM.runtime?.id || globalThis.chrome?.runtime?.id);
     } catch {
       return false;
     }
@@ -315,7 +316,11 @@
     }
 
     try {
-      return await chrome.runtime.sendMessage(payload);
+      if (PLATFORM.runtime?.sendMessage) {
+        return await PLATFORM.runtime.sendMessage(payload);
+      }
+      const runtime = globalThis.chrome?.runtime;
+      return runtime ? runtime.sendMessage(payload) : null;
     } catch {
       return null;
     }
@@ -337,7 +342,8 @@
   });
   if (isRuntimeContextValid()) {
     try {
-      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      const runtime = PLATFORM.runtime || globalThis.chrome?.runtime;
+      runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
         if (message?.type === "setFloatingButtonVisible") {
           setFloatingButtonVisible(message.enabled);
           sendResponse?.({ ok: true, enabled: state.floatingEnabled });
@@ -1254,7 +1260,12 @@
     }
 
     try {
-      port = chrome.runtime.connect({ name: "chatWithPetStream" });
+      port = PLATFORM.runtime?.connect
+        ? PLATFORM.runtime.connect({ name: "chatWithPetStream" })
+        : globalThis.chrome?.runtime?.connect({ name: "chatWithPetStream" });
+      if (!port) {
+        throw new Error("Extension runtime port is unavailable");
+      }
       port.onMessage.addListener((payload) => {
         if (settled) {
           return;

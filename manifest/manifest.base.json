@@ -22,9 +22,6 @@
   "host_permissions": [
     "<all_urls>"
   ],
-  "background": {
-    "service_worker": "background-loader.js"
-  },
   "action": {
     "default_title": "__MSG_actionTitle__",
     "default_icon": {
