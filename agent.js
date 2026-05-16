@@ -90,6 +90,10 @@
     return messages.slice(startIndex);
   }
 
+  function isToolMessageSequencePart(message) {
+    return message?.role === "tool" || (message?.role === "assistant" && getToolCallIds(message).length > 0);
+  }
+
   function compressMessages(messages, maxMessages = DEFAULT_MAX_MESSAGES) {
     const normalized = normalizeHistory(messages).map((message) => ({
       ...message,
@@ -129,6 +133,10 @@
           return;
         }
         messages.push(nextMessage);
+        // Tool calls and their results arrive as separate messages; compress after the sequence closes.
+        if (isToolMessageSequencePart(nextMessage)) {
+          return;
+        }
         messages = compressMessages(messages);
       },
       getMessages() {
