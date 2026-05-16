@@ -160,6 +160,95 @@
     return bubble;
   }
 
+  function getExtensionAssetUrl(path) {
+    try {
+      return globalThis.DogeclawPlatform?.api?.runtime?.getURL?.(path) || globalThis.chrome?.runtime?.getURL?.(path) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function createTipIcon(icon) {
+    if (icon === false || icon === null) {
+      return null;
+    }
+
+    const iconWrap = document.createElement("span");
+    iconWrap.className = "pig-tip-logo";
+    const iconValue = icon === undefined ? "logo" : icon;
+    const iconUrl = iconValue === "logo" ? getExtensionAssetUrl("icons/icon-32.png") : String(iconValue || "");
+
+    if (/^(https?:|data:image\/|blob:)/i.test(iconUrl)) {
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = iconUrl;
+      iconWrap.append(img);
+    } else {
+      iconWrap.textContent = String(iconValue || "d").slice(0, 2);
+    }
+
+    return iconWrap;
+  }
+
+  function createCloseIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M6 6L18 18M18 6L6 18");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke-linecap", "round");
+    svg.append(path);
+    return svg;
+  }
+
+  function renderTipMessage({ message, onAction, onClose }) {
+    const row = document.createElement("div");
+    row.className = "pig-chat-row is-left is-tip";
+
+    const panel = document.createElement("div");
+    panel.className = "pig-chat-bubble pig-tip-message";
+    stopComponentPropagation(panel);
+
+    const icon = createTipIcon(message.icon);
+    if (!icon) {
+      panel.classList.add("has-no-icon");
+    }
+
+    const body = document.createElement("div");
+    body.className = "pig-tip-body";
+    body.innerHTML = renderMarkdown(message.text);
+
+    const actionButton = document.createElement("button");
+    actionButton.className = "pig-tip-action";
+    actionButton.type = "button";
+    actionButton.textContent = message.actionLabel || "";
+    actionButton.hidden = !message.actionLabel;
+    actionButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onAction?.();
+    });
+
+    const closeButton = document.createElement("button");
+    closeButton.className = "pig-tip-close";
+    closeButton.type = "button";
+    closeButton.title = t("tips.close");
+    closeButton.setAttribute("aria-label", t("tips.close"));
+    closeButton.append(createCloseIcon());
+    closeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose?.();
+    });
+
+    panel.append(...[icon, body, actionButton, closeButton].filter(Boolean));
+    row.append(panel);
+    return row;
+  }
+
   function stopComponentPropagation(element) {
     ["click", "pointerdown", "pointerup", "focusin", "focusout", "keydown"].forEach((eventName) => {
       element.addEventListener(eventName, (event) => {
@@ -353,6 +442,7 @@
 
   globalThis.DogeclawUI = {
     createChatBubble,
+    renderTipMessage,
     renderChannelConfigForm,
     renderLlmConfigForm,
     renderMarkdown

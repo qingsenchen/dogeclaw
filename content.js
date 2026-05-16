@@ -15,6 +15,7 @@
   const FLOATING_BUTTON_COMPACT_WIDTH = 132;
   const FLOATING_BUTTON_EDGE_PADDING = 8;
   const DRAG_START_THRESHOLD = 4;
+  const LLM_CONFIG_TIP_ID = "dogeclaw-llm-config-tip";
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
 
   [ROOT_ID, ...(CONTENT_CONFIG.legacyRootIds || [])].forEach((id) => {
@@ -877,10 +878,20 @@
       return false;
     }
 
-    openConfigPanel("llm");
-    renderHoverMessages();
+    showLlmProviderConfigTip();
     scheduleSync();
     return true;
+  }
+
+  function showLlmProviderConfigTip() {
+    addHoverTip({
+      id: LLM_CONFIG_TIP_ID,
+      text: t("llm.configTip"),
+      actionLabel: t("llm.configTipAction"),
+      action: "open_llm_config",
+      icon: "logo"
+    });
+    state.chatHoldExpanded = true;
   }
 
   async function showLlmProviderConfigForm() {
@@ -1060,10 +1071,14 @@
     let componentInserted = false;
 
     state.hoverMessages.forEach((message, index) => {
-      const row = document.createElement("div");
-      row.className = `pig-chat-row is-${message.side}${message.pending ? " is-pending" : ""}`;
-
-      row.append(window.DogeclawUI.createChatBubble(message.text));
+      const row =
+        message.type === "tip"
+          ? window.DogeclawUI.renderTipMessage({
+              message,
+              onAction: () => handleTipAction(message),
+              onClose: () => removeHoverMessage(message.id)
+            })
+          : renderChatMessageRow(message);
       elements.hoverMessages.append(row);
 
       if (componentRow && index === componentAfterIndex) {
@@ -1110,6 +1125,13 @@
         elements.hoverMessages.classList.remove("is-collapsing");
       }
     }, 180);
+  }
+
+  function renderChatMessageRow(message) {
+    const row = document.createElement("div");
+    row.className = `pig-chat-row is-${message.side}${message.pending ? " is-pending" : ""}`;
+    row.append(window.DogeclawUI.createChatBubble(message.text));
+    return row;
   }
 
   function trimHoverMessagesToLimit() {
@@ -1300,6 +1322,73 @@
     return item.id;
   }
 
+  function addHoverTip(options = {}) {
+    const text = String(options.text || "").trim();
+    if (!text) {
+      return null;
+    }
+
+    const id = options.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const existing = state.hoverMessages.find((message) => message.id === id);
+    const item = {
+      id,
+      type: "tip",
+      sessionId: options.sessionId || state.pageConversationId,
+      source: options.source || "page",
+      side: "left",
+      text,
+      icon: options.icon ?? "logo",
+      action: options.action || "",
+      actionLabel: options.actionLabel || "",
+      pending: false,
+      includeInHistory: false
+    };
+
+    if (existing) {
+      Object.assign(existing, item);
+    } else {
+      state.hoverMessages.push(item);
+      trimHoverMessagesToLimit();
+    }
+
+    state.chatVisible = true;
+    if (state.chatHideTimer) {
+      window.clearTimeout(state.chatHideTimer);
+      state.chatHideTimer = 0;
+    }
+    renderHoverMessages();
+    return id;
+  }
+
+  function removeHoverMessage(id, options = {}) {
+    const index = state.hoverMessages.findIndex((message) => message.id === id);
+    if (index < 0) {
+      return false;
+    }
+
+    state.hoverMessages.splice(index, 1);
+    if (!state.hoverMessages.length && !state.thinkingActive) {
+      state.chatVisible = false;
+      state.chatHoldExpanded = false;
+    }
+    if (options.render !== false) {
+      renderHoverMessages();
+      scheduleSync();
+    }
+    return true;
+  }
+
+  function handleTipAction(message) {
+    if (message.action === "open_llm_config") {
+      removeHoverMessage(message.id, { render: false });
+      openConfigPanel("llm");
+      state.chatVisible = true;
+      state.chatHoldExpanded = true;
+      renderHoverMessages();
+      scheduleSync();
+    }
+  }
+
   function updateHoverMessage(id, text, options = {}) {
     const item = state.hoverMessages.find((message) => message.id === id);
     if (!item) {
@@ -1474,12 +1563,15 @@
       return;
     }
 
-    input.value = "";
     if (await showLlmConfigIfNeeded()) {
-      addHoverMessage(value, "right");
+      window.requestAnimationFrame(() => {
+        input.focus();
+        input.setSelectionRange(value.length, value.length);
+      });
       return;
     }
 
+    input.value = "";
     sendTextToDogeclaw(value);
   }
 
@@ -2249,6 +2341,107 @@
 
       .pig-chat-row.is-pending .pig-chat-bubble {
         opacity: 0.72;
+      }
+
+      .pig-chat-row.is-tip {
+        justify-content: flex-start;
+      }
+
+      .pig-tip-message {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto 24px;
+        align-items: center;
+        gap: 8px;
+        width: min(320px, calc(100vw - 48px));
+        max-width: min(320px, calc(100vw - 48px));
+        padding: 8px;
+        border-color: rgba(96, 165, 250, 0.28);
+        background: rgba(18, 24, 38, 0.96);
+      }
+
+      .pig-tip-message.has-no-icon {
+        grid-template-columns: minmax(0, 1fr) auto 24px;
+      }
+
+      .pig-tip-logo {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 8px;
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.1);
+        font-size: 12px;
+        font-weight: 800;
+        overflow: hidden;
+      }
+
+      .pig-tip-logo img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+      }
+
+      .pig-tip-body {
+        min-width: 0;
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .pig-tip-body p,
+      .pig-tip-body ul,
+      .pig-tip-body ol {
+        margin: 0;
+      }
+
+      .pig-tip-action,
+      .pig-tip-close {
+        all: unset;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .pig-tip-action {
+        min-height: 28px;
+        border: 1px solid rgba(96, 165, 250, 0.5);
+        border-radius: 8px;
+        padding: 5px 9px;
+        color: #ffffff;
+        background: rgba(37, 99, 235, 0.76);
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+
+      .pig-tip-action[hidden] {
+        display: none;
+      }
+
+      .pig-tip-close {
+        width: 24px;
+        height: 24px;
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.74);
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .pig-tip-close:hover,
+      .pig-tip-close:focus-visible {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .pig-tip-close svg {
+        width: 14px;
+        height: 14px;
+        display: block;
       }
 
       .pig-chat-row.is-component {

@@ -128,14 +128,14 @@
       function: {
         name: "system_config",
         description:
-          "管理 dogeclaw 系统配置。用户想查看当前模型、切换模型、修改 API Key/Base URL、修改 LLM 供应商或打开 LLM Provider 配置表单时使用。",
+          "管理 dogeclaw 系统配置。用户想查看当前模型、切换模型、修改 API Key/Base URL、修改 LLM 提供商或打开 LLM 提供商配置表单时使用。",
         parameters: {
           type: "object",
           properties: {
             action: {
               type: "string",
               enum: ["get_llm_config", "set_llm_config", "open_llm_provider_form"],
-              description: "配置动作。get_llm_config 查询当前配置；set_llm_config 修改配置；open_llm_provider_form 打开配置表单让用户手动修改供应商。"
+              description: "配置动作。get_llm_config 查询当前配置；set_llm_config 修改配置；open_llm_provider_form 打开配置表单让用户手动修改提供商。"
             },
             model: {
               type: "string",

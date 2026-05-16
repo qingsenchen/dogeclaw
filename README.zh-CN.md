@@ -27,7 +27,7 @@
 
 ## 概览
 
-dogeclaw 是一个基于 Chrome Manifest V3 的浏览器 AI 助手扩展。它会在网页中添加一个可拖动的悬浮宠物，支持页面内对话、OpenAI-compatible LLM Provider、工具调用、浏览器操作、选中文本发送，以及可选的微信频道集成。
+dogeclaw 是一个基于 Chrome Manifest V3 的浏览器 AI 助手扩展。它会在网页中添加一个可拖动的悬浮宠物，支持页面内对话、OpenAI-compatible LLM 提供商、工具调用、浏览器操作、选中文本发送，以及可选的微信频道集成。
 
 项目设计为本地加载的未打包扩展使用。仓库不会内置任何 API Key。
 
@@ -72,11 +72,11 @@ dogeclaw 致力于浏览器端 agent。许多专业网站，例如股票网站�
 
 ## 配置
 
-### LLM Provider
+### LLM 提供商
 
 dogeclaw 使用 OpenAI-compatible Chat Completions API。使用聊天功能前，需要配置你自己的模型服务。
 
-打开 dogeclaw 悬浮面板，进入 LLM Provider 配置视图，并填写：
+打开 dogeclaw 悬浮面板，进入 LLM 提供商配置视图，并填写：
 
 - Base URL，例如 `https://api.openai.com/v1`
 - Model，例如 `gpt-4o-mini`
@@ -96,7 +96,7 @@ LLM 调试日志默认关闭。如果在 `config.js` 中开启，请求和响应
 
 ### 配置模型服务
 
-打开悬浮面板，进入 LLM Provider 配置视图，保存 Base URL、模型名称和 API Key。API Key 会保存在 Chrome 扩展本地存储中，不会提交到本仓库。
+打开悬浮面板，进入 LLM 提供商配置视图，保存 Base URL、模型名称和 API Key。API Key 会保存在 Chrome 扩展本地存储中，不会提交到本仓库。
 
 ### 页面内对话
 
@@ -112,13 +112,13 @@ dogeclaw 可以调用天气查询和浏览器控制等受支持工具。浏览�
 
 ### 微信频道
 
-如果启用微信频道，可以从悬浮面板进入频道配置视图，并按登录流程完成配置。配置完成后，dogeclaw 可以轮询频道消息、处理收到的内容，并通过已配置的 LLM Provider 回复。
+如果启用微信频道，可以从悬浮面板进入频道配置视图，并按登录流程完成配置。配置完成后，dogeclaw 可以轮询频道消息、处理收到的内容，并通过已配置的 LLM 提供商回复。
 
 ### 常见问题
 
 - 修改本地文件后，需要在 `chrome://extensions/` 中重新加载扩展。
 - 重新加载扩展后，需要刷新目标网页。
-- 如果聊天回复失败，请重新打开 LLM Provider 配置面板，确认 Base URL、模型名称和 API Key 正确。
+- 如果聊天回复失败，请重新打开 LLM 提供商配置面板，确认 Base URL、模型名称和 API Key 正确。
 - 开发调试时可以查看扩展的 Service Worker 控制台。
 
 ## 隐私和权限
@@ -133,7 +133,7 @@ dogeclaw 会请求以下 Chrome 扩展权限：
 - `contextMenus`: 添加选中文本相关的右键菜单
 - `<all_urls>` host access: 在网页中加载助手 UI
 
-你发送给 dogeclaw 的内容，包括输入消息、选中文本、页面上下文、截图或工具结果，可能会发送到你配置的 LLM Provider。发送敏感信息前，请先确认服务商的数据政策。
+你发送给 dogeclaw 的内容，包括输入消息、选中文本、页面上下文、截图或工具结果，可能会发送到你配置的 LLM 提供商。发送敏感信息前，请先确认服务商的数据政策。
 
 本仓库不包含任何 API Key。请仅通过 Chrome 扩展本地存储保存你自己的 Key。
 
@@ -213,7 +213,7 @@ npm run check
 
 ## 贡献
 
-欢迎贡献，尤其是浏览器端 agent 能力、站点定制工具、LLM Provider 兼容性、微信频道稳定性、文档和 i18n 相关改进。
+欢迎贡献，尤其是浏览器端 agent 能力、站点定制工具、LLM 提供商兼容性、微信频道稳定性、文档和 i18n 相关改进。
 
 提交 Pull Request 前：
 
