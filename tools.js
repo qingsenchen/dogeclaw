@@ -1,6 +1,6 @@
 (function () {
-  const CONFIG = globalThis.OnecaiConfig || {};
-  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
+  const CONFIG = globalThis.DogeclawConfig || {};
+  const PLATFORM = globalThis.DogeclawPlatform || {};
   const WEATHER_TIMEOUT_MS = CONFIG.tools?.weatherTimeoutMs || 12000;
   const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
 
@@ -110,7 +110,7 @@
               type: "boolean",
               description: "screenshot 后是否直接在当前网页的 dogeclaw 聊天气泡中展示图片。网页会话默认 true，微信通道默认 false。"
             },
-            includeOnecaiUi: {
+            includeDogeclawUi: {
               type: "boolean",
               description: "screenshot 是否把 dogeclaw 悬浮按钮也截进去，默认 false。"
             },
@@ -276,7 +276,7 @@
     return {
       userConfigured: Boolean(status?.userConfigured),
       model: config.model || "",
-      providerModel: globalThis.OnecaiLLM?.getProviderModelName ? OnecaiLLM.getProviderModelName(config.model) : config.model || "",
+      providerModel: globalThis.DogeclawLLM?.getProviderModelName ? DogeclawLLM.getProviderModelName(config.model) : config.model || "",
       apiBase: config.apiBase || "",
       apiKey: config.apiKey ? maskSecret(config.apiKey) : "",
       systemPrompt: config.systemPrompt || ""
@@ -299,7 +299,7 @@
     return tab;
   }
 
-  async function ensureOnecaiContentScript(tab) {
+  async function ensureDogeclawContentScript(tab) {
     try {
       const existing = await PLATFORM.tabs.sendMessage(tab.id, { type: "getFloatingButtonVisible" });
       if (existing?.ok) {
@@ -317,7 +317,7 @@
 
   async function openLlmProviderForm() {
     const tab = await getActiveHttpTab();
-    await ensureOnecaiContentScript(tab);
+    await ensureDogeclawContentScript(tab);
     const result = await PLATFORM.tabs.sendMessage(tab.id, {
       type: "openLlmProviderConfig"
     });
@@ -333,12 +333,12 @@
 
   async function executeSystemConfig(args = {}) {
     const action = String(args.action || "").trim();
-    if (!globalThis.OnecaiLLM) {
+    if (!globalThis.DogeclawLLM) {
       throw new Error("LLM config runtime is unavailable");
     }
 
     if (action === "get_llm_config") {
-      return sanitizeLlmConfigStatus(await OnecaiLLM.getConfigStatus());
+      return sanitizeLlmConfigStatus(await DogeclawLLM.getConfigStatus());
     }
 
     if (action === "set_llm_config") {
@@ -358,10 +358,10 @@
       if (!Object.keys(config).length) {
         throw new Error("No config fields provided");
       }
-      await OnecaiLLM.setConfig(config);
+      await DogeclawLLM.setConfig(config);
       return {
         saved: true,
-        ...(sanitizeLlmConfigStatus(await OnecaiLLM.getConfigStatus()))
+        ...(sanitizeLlmConfigStatus(await DogeclawLLM.getConfigStatus()))
       };
     }
 
@@ -374,14 +374,14 @@
 
   function getChannelRuntime(channel) {
     if (channel === "wechat") {
-      return globalThis.OnecaiWechatChannel;
+      return globalThis.DogeclawWechatChannel;
     }
     return null;
   }
 
   async function openChannelConfigForm(channel) {
     const tab = await getActiveHttpTab();
-    await ensureOnecaiContentScript(tab);
+    await ensureDogeclawContentScript(tab);
     const result = await PLATFORM.tabs.sendMessage(tab.id, {
       type: "openChannelConfig",
       channel
@@ -463,7 +463,7 @@
     }
 
     if (name === "browser_control") {
-      if (!globalThis.OnecaiBrowser?.execute) {
+      if (!globalThis.DogeclawBrowser?.execute) {
         throw new Error("browser control runtime is unavailable");
       }
       const nextArgs = { ...(args || {}) };
@@ -474,7 +474,7 @@
         nextArgs.showInChat = nextArgs.showInChat ?? context.channel !== "wechat";
         nextArgs.includeDataUrl = Boolean(nextArgs.includeDataUrl);
       }
-      return OnecaiBrowser.execute(nextArgs);
+      return DogeclawBrowser.execute(nextArgs);
     }
 
     if (name === "system_config") {
@@ -488,7 +488,7 @@
     throw new Error(`Unknown tool: ${name}`);
   }
 
-  globalThis.OnecaiTools = {
+  globalThis.DogeclawTools = {
     getSchemas,
     describeTools,
     execute

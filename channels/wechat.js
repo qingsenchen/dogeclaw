@@ -1,7 +1,7 @@
 (function () {
-  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
-  const CONFIG = globalThis.OnecaiConfig || {};
-  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
+  const CONFIG = globalThis.DogeclawConfig || {};
+  const PLATFORM = globalThis.DogeclawPlatform || {};
   const WECHAT_CONFIG = CONFIG.wechat || {};
   const CDN_BASE_URL = WECHAT_CONFIG.cdnBaseUrl || "https://novac2c.cdn.weixin.qq.com/c2c";
   const MEDIA_MAX_BYTES = WECHAT_CONFIG.mediaMaxBytes || 100 * 1024 * 1024;
@@ -888,7 +888,7 @@
     };
   }
 
-  globalThis.OnecaiWechatMedia = {
+  globalThis.DogeclawWechatMedia = {
     CDN_BASE_URL,
     UploadMediaType,
     MessageType,
@@ -919,14 +919,14 @@
 })();
 
 (function () {
-  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
-  const CONFIG = globalThis.OnecaiConfig || {};
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
+  const CONFIG = globalThis.DogeclawConfig || {};
   const STORAGE_CONFIG = CONFIG.storage || {};
   const WECHAT_CONFIG = CONFIG.wechat || {};
-  const MEDIA = globalThis.OnecaiWechatMedia || {};
-  const CONFIG_KEY = STORAGE_CONFIG.wechatConfigKey || "onecai-channel-wechat-config";
-  const STATE_KEY = STORAGE_CONFIG.wechatStateKey || "onecai-channel-wechat-state";
-  const LOGIN_KEY = STORAGE_CONFIG.wechatLoginKey || "onecai-channel-wechat-login";
+  const MEDIA = globalThis.DogeclawWechatMedia || {};
+  const CONFIG_KEY = STORAGE_CONFIG.wechatConfigKey || "dogeclaw-channel-wechat-config";
+  const STATE_KEY = STORAGE_CONFIG.wechatStateKey || "dogeclaw-channel-wechat-state";
+  const LOGIN_KEY = STORAGE_CONFIG.wechatLoginKey || "dogeclaw-channel-wechat-login";
   const DEFAULT_TIMEOUT_MS = WECHAT_CONFIG.defaultTimeoutMs || 30000;
   const QR_LONG_POLL_TIMEOUT_MS = WECHAT_CONFIG.qrLongPollTimeoutMs || 35000;
   const ACTIVE_LOGIN_TTL_MS = WECHAT_CONFIG.activeLoginTtlMs || 5 * 60 * 1000;
@@ -1031,11 +1031,11 @@
   }
 
   function createQrcodeDataUrl(qrcodeImgContent) {
-    if (!globalThis.OnecaiQrCode) {
+    if (!globalThis.DogeclawQrCode) {
       throw new Error("qrcode generator is not loaded");
     }
 
-    const qr = globalThis.OnecaiQrCode(0, "M");
+    const qr = globalThis.DogeclawQrCode(0, "M");
     qr.addData(String(qrcodeImgContent || ""), "Byte");
     qr.make();
     const svg = qr.createSvgTag({
@@ -1488,7 +1488,7 @@
   }
 
   function generateClientId() {
-    return `onecai-wechat-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return `dogeclaw-wechat-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   function buildSendMessagePayload({ toUser, item, contextToken, clientId, extra }) {
@@ -1669,7 +1669,7 @@
     throw new Error(`Unknown wechat channel action: ${action || "(empty)"}`);
   }
 
-  globalThis.OnecaiWechatChannel = {
+  globalThis.DogeclawWechatChannel = {
     getConfig,
     setConfig,
     getState,

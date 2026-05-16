@@ -6,29 +6,26 @@
       chineseName: "dogeclaw"
     },
     storage: {
-      llmConfigKey: "onecai-llm-config",
-      savedImagesKey: "page-image-gallery-saved-images",
-      floatingButtonStateKeyPrefix: "page-image-gallery-floating-enabled:",
-      wechatConfigKey: "onecai-channel-wechat-config",
-      wechatStateKey: "onecai-channel-wechat-state",
-      wechatLoginKey: "onecai-channel-wechat-login",
-      channelHistoryKey: "onecai-channel-history",
-      channelSeenKey: "onecai-channel-seen"
+      llmConfigKey: "dogeclaw-llm-config",
+      floatingButtonStateKeyPrefix: "dogeclaw-floating-enabled:",
+      wechatConfigKey: "dogeclaw-channel-wechat-config",
+      wechatStateKey: "dogeclaw-channel-wechat-state",
+      wechatLoginKey: "dogeclaw-channel-wechat-login",
+      channelHistoryKey: "dogeclaw-channel-history",
+      channelSeenKey: "dogeclaw-channel-seen"
     },
     content: {
-      rootId: "onecai-root",
-      legacyRootIds: ["page-image-gallery-root"],
-      styleId: "onecai-style",
+      rootId: "dogeclaw-root",
+      legacyRootIds: [],
+      styleId: "dogeclaw-style",
       scriptFiles: ["platform/extension-api.js", "config.js", "i18n.js", "pet.js", "ui.js", "content.js"],
       maxHoverMessages: 6,
       mountWatchdogIntervalMs: 1000,
-      positionKeyPrefix: "onecai-position:"
+      positionKeyPrefix: "dogeclaw-position:"
     },
     background: {
-      maxSavedImages: 60,
-      sendSelectionMenuId: "onecai-send-selection",
-      commandPollAlarm: "page-image-gallery-command-poll",
-      channelPollAlarm: "onecai-channel-poll"
+      sendSelectionMenuId: "dogeclaw-send-selection",
+      channelPollAlarm: "dogeclaw-channel-poll"
     },
     channel: {
       historyLimit: 12,
@@ -127,5 +124,5 @@
     }
   };
 
-  globalThis.OnecaiConfig = config;
+  globalThis.DogeclawConfig = config;
 })();

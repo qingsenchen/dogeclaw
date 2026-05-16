@@ -1,12 +1,12 @@
 (function () {
-  const CONFIG = globalThis.OnecaiConfig || {};
-  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
+  const CONFIG = globalThis.DogeclawConfig || {};
+  const PLATFORM = globalThis.DogeclawPlatform || {};
   const LLM_CONFIG = CONFIG.llm || {};
-  const LLM_CONFIG_KEY = CONFIG.storage?.llmConfigKey || "onecai-llm-config";
+  const LLM_CONFIG_KEY = CONFIG.storage?.llmConfigKey || "dogeclaw-llm-config";
   const LLM_TIMEOUT_MS = LLM_CONFIG.timeoutMs || 120000;
   const LLM_HISTORY_LIMIT = LLM_CONFIG.maxMessages || 32;
   const MODEL_ALIASES = LLM_CONFIG.modelAliases || {};
-  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const DEFAULT_CONFIG = LLM_CONFIG.defaultConfig || {
     model: "gpt-4o-mini",
     apiBase: "https://api.openai.com/v1",
@@ -474,7 +474,7 @@
     }
   }
 
-  globalThis.OnecaiLLM = {
+  globalThis.DogeclawLLM = {
     getConfig,
     getConfigStatus,
     setConfig,

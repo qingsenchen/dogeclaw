@@ -306,7 +306,7 @@
     return value;
   }
 
-  globalThis.OnecaiI18n = {
+  globalThis.DogeclawI18n = {
     locale,
     t,
     dictionaries,

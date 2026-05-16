@@ -28,7 +28,6 @@ const extensionEntries = [
   "i18n.js",
   "llm.js",
   "pet.js",
-  "rules.js",
   "tools.js",
   "ui.js",
   "LICENSE"

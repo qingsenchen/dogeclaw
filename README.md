@@ -131,7 +131,6 @@ dogeclaw requests the following Chrome extension permissions:
 - `alarms`: schedule polling tasks
 - `tabs`: coordinate page-level assistant state and browser actions
 - `contextMenus`: add selected-text actions to the right-click menu
-- `downloads`: save user-selected page assets when download actions are used
 - `<all_urls>` host access: load the assistant UI across web pages
 
 Content you send to dogeclaw, including typed messages, selected text, page context, screenshots, or tool results, may be sent to the LLM provider you configure. Review your provider's data policy before sending sensitive information.

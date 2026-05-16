@@ -3,19 +3,19 @@
     return;
   }
 
-  const CONTENT_CONFIG = globalThis.OnecaiConfig?.content || {};
-  const ROOT_ID = CONTENT_CONFIG.rootId || "onecai-root";
-  const STYLE_ID = CONTENT_CONFIG.styleId || "onecai-style";
+  const CONTENT_CONFIG = globalThis.DogeclawConfig?.content || {};
+  const ROOT_ID = CONTENT_CONFIG.rootId || "dogeclaw-root";
+  const STYLE_ID = CONTENT_CONFIG.styleId || "dogeclaw-style";
   const SVG_NS = "http://www.w3.org/2000/svg";
   const MAX_HOVER_MESSAGES = CONTENT_CONFIG.maxHoverMessages || 6;
   const MOUNT_WATCHDOG_INTERVAL = CONTENT_CONFIG.mountWatchdogIntervalMs || 1000;
-  const POSITION_KEY = `${CONTENT_CONFIG.positionKeyPrefix || "onecai-position:"}${location.host}`;
-  const LLM_DEFAULT_CONFIG = globalThis.OnecaiConfig?.llm?.defaultConfig || {};
-  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
+  const POSITION_KEY = `${CONTENT_CONFIG.positionKeyPrefix || "dogeclaw-position:"}${location.host}`;
+  const LLM_DEFAULT_CONFIG = globalThis.DogeclawConfig?.llm?.defaultConfig || {};
+  const PLATFORM = globalThis.DogeclawPlatform || {};
   const FLOATING_BUTTON_COMPACT_WIDTH = 132;
   const FLOATING_BUTTON_EDGE_PADDING = 8;
   const DRAG_START_THRESHOLD = 4;
-  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
 
   [ROOT_ID, ...(CONTENT_CONFIG.legacyRootIds || [])].forEach((id) => {
     const existingRoot = document.getElementById(id);
@@ -130,14 +130,14 @@
   }
 
   function getBrowserRef(element) {
-    const existing = element.getAttribute("data-onecai-browser-ref");
+    const existing = element.getAttribute("data-dogeclaw-browser-ref");
     if (existing) {
       browserRefs.set(existing, element);
       return existing;
     }
 
     const ref = `b${++browserRefCounter}`;
-    element.setAttribute("data-onecai-browser-ref", ref);
+    element.setAttribute("data-dogeclaw-browser-ref", ref);
     browserRefs.set(ref, element);
     return ref;
   }
@@ -326,13 +326,9 @@
     }
   }
 
-  async function reportError(context, error, details = {}) {
-    return false;
-  }
-
   let elements;
   elements = createUI();
-  const petController = window.OnecaiPet.createController({
+  const petController = window.DogeclawPet.createController({
     elements,
     state,
     scheduleSync
@@ -355,12 +351,12 @@
           return false;
         }
 
-        if (message?.type === "onecaiBrowserPing") {
+        if (message?.type === "dogeclawBrowserPing") {
           sendResponse?.({ ok: true });
           return false;
         }
 
-        if (message?.type === "onecaiCaptureMode") {
+        if (message?.type === "dogeclawCaptureMode") {
           if (elements?.root) {
             elements.root.style.visibility = message.hidden ? "hidden" : "";
           }
@@ -368,7 +364,7 @@
           return false;
         }
 
-        if (message?.type === "onecaiToolArtifact" && message.artifact?.type === "image") {
+        if (message?.type === "dogeclawToolArtifact" && message.artifact?.type === "image") {
           const dataUrl = String(message.artifact.dataUrl || "");
           if (dataUrl.startsWith("data:image/")) {
             const title = String(message.artifact.title || "screenshot").replace(/[\]\n\r]/g, " ").trim() || "screenshot";
@@ -381,7 +377,7 @@
           return false;
         }
 
-        if (message?.type === "onecaiBrowserAction") {
+        if (message?.type === "dogeclawBrowserAction") {
           try {
             sendResponse?.(handleBrowserAction(message));
           } catch (error) {
@@ -390,8 +386,8 @@
           return false;
         }
 
-        if (message?.type === "sendSelectionToOnecai") {
-          sendResponse?.({ ok: fillTextToOnecaiInput(message.text) });
+        if (message?.type === "sendSelectionToDogeclaw") {
+          sendResponse?.({ ok: fillTextToDogeclawInput(message.text) });
           return false;
         }
 
@@ -1061,12 +1057,12 @@
     elements.hoverMessages.replaceChildren();
     let componentRow = null;
     if (state.llmConfig.visible) {
-      componentRow = window.OnecaiUI.renderLlmConfigForm({
+      componentRow = window.DogeclawUI.renderLlmConfigForm({
         state,
         onSave: saveLlmConfig
       });
     } else if (state.channelConfig.visible) {
-      componentRow = window.OnecaiUI.renderChannelConfigForm({
+      componentRow = window.DogeclawUI.renderChannelConfigForm({
         state,
         onStart: () => startChannelConfig(state.channelConfig.channel),
         onCheck: () => checkChannelConfig(state.channelConfig.channel),
@@ -1087,7 +1083,7 @@
       const row = document.createElement("div");
       row.className = `pig-chat-row is-${message.side}${message.pending ? " is-pending" : ""}`;
 
-      row.append(window.OnecaiUI.createChatBubble(message.text));
+      row.append(window.DogeclawUI.createChatBubble(message.text));
       elements.hoverMessages.append(row);
 
       if (componentRow && index === componentAfterIndex) {
@@ -1261,8 +1257,8 @@
 
     try {
       port = PLATFORM.runtime?.connect
-        ? PLATFORM.runtime.connect({ name: "chatWithPetStream" })
-        : globalThis.chrome?.runtime?.connect({ name: "chatWithPetStream" });
+        ? PLATFORM.runtime.connect({ name: "dogeclawChatStream" })
+        : globalThis.chrome?.runtime?.connect({ name: "dogeclawChatStream" });
       if (!port) {
         throw new Error("Extension runtime port is unavailable");
       }
@@ -1305,7 +1301,6 @@
                 ? fullText || t("llm.interrupted")
                 : t("llm.failed", { error: errorText || t("llm.requestFailed") })
           );
-          reportError("chat_with_pet_stream", new Error(errorText || "LLM request failed"));
         }
       });
       port.onDisconnect.addListener(() => {
@@ -1323,11 +1318,10 @@
       window.clearTimeout(timeoutId);
       setThinkingStatus("");
       updateHoverMessage(replyId, t("llm.failed", { error: error?.message || String(error) }));
-      reportError("chat_with_pet_stream", error);
     }
   }
 
-  function fillTextToOnecaiInput(text) {
+  function fillTextToDogeclawInput(text) {
     const value = String(text || "").trim();
     if (!value) {
       return false;
@@ -1349,7 +1343,7 @@
     return true;
   }
 
-  function sendTextToOnecai(text) {
+  function sendTextToDogeclaw(text) {
     const value = String(text || "").trim();
     if (!value) {
       return false;
@@ -1382,7 +1376,7 @@
       return;
     }
 
-    sendTextToOnecai(value);
+    sendTextToDogeclaw(value);
   }
 
   function onPointerDown(event) {
@@ -2817,28 +2811,10 @@
     }, MOUNT_WATCHDOG_INTERVAL);
   }
 
-  function installGlobalErrorHandlers() {
-    window.addEventListener("error", (event) => {
-      reportError("global_error", event.error || new Error(event.message || "Unknown content error"), {
-        filename: event.filename || "",
-        lineno: event.lineno || 0,
-        colno: event.colno || 0
-      });
-    });
-
-    window.addEventListener("unhandledrejection", (event) => {
-      const reason = event.reason;
-      reportError("unhandled_rejection", reason, {
-        reasonType: typeof reason
-      });
-    });
-  }
-
   async function start() {
     await loadFloatingButtonVisibility();
     ensureUiMounted();
     applySavedPosition();
-    installGlobalErrorHandlers();
     startMountWatchdog();
   }
 

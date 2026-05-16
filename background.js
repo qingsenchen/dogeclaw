@@ -1,20 +1,16 @@
-const APP_CONFIG = globalThis.OnecaiConfig || {};
-const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
-const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
+const APP_CONFIG = globalThis.DogeclawConfig || {};
+const PLATFORM = globalThis.DogeclawPlatform || {};
+const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
 const STORAGE_CONFIG = APP_CONFIG.storage || {};
 const CONTENT_CONFIG = APP_CONFIG.content || {};
 const BACKGROUND_CONFIG = APP_CONFIG.background || {};
 const CHANNEL_CONFIG = APP_CONFIG.channel || {};
 const WECHAT_CONFIG = APP_CONFIG.wechat || {};
-const SAVED_IMAGES_KEY = STORAGE_CONFIG.savedImagesKey || "page-image-gallery-saved-images";
-const MAX_SAVED_IMAGES = BACKGROUND_CONFIG.maxSavedImages || 60;
-const FLOATING_BUTTON_STATE_KEY_PREFIX = STORAGE_CONFIG.floatingButtonStateKeyPrefix || "page-image-gallery-floating-enabled:";
-const SEND_SELECTION_MENU_ID = BACKGROUND_CONFIG.sendSelectionMenuId || "onecai-send-selection";
-const COMMAND_POLL_ALARM = BACKGROUND_CONFIG.commandPollAlarm || "page-image-gallery-command-poll";
-const CHANNEL_POLL_ALARM = BACKGROUND_CONFIG.channelPollAlarm || "onecai-channel-poll";
-const CHANNEL_HISTORY_KEY = STORAGE_CONFIG.channelHistoryKey || "onecai-channel-history";
-const CHANNEL_SEEN_KEY = STORAGE_CONFIG.channelSeenKey || "onecai-channel-seen";
-const LEGACY_CHANNEL_DEBUG_LOG_KEY = STORAGE_CONFIG.channelDebugLogKey || "onecai-channel-debug-log";
+const FLOATING_BUTTON_STATE_KEY_PREFIX = STORAGE_CONFIG.floatingButtonStateKeyPrefix || "dogeclaw-floating-enabled:";
+const SEND_SELECTION_MENU_ID = BACKGROUND_CONFIG.sendSelectionMenuId || "dogeclaw-send-selection";
+const CHANNEL_POLL_ALARM = BACKGROUND_CONFIG.channelPollAlarm || "dogeclaw-channel-poll";
+const CHANNEL_HISTORY_KEY = STORAGE_CONFIG.channelHistoryKey || "dogeclaw-channel-history";
+const CHANNEL_SEEN_KEY = STORAGE_CONFIG.channelSeenKey || "dogeclaw-channel-seen";
 const CHANNEL_HISTORY_LIMIT = CHANNEL_CONFIG.historyLimit || 12;
 const CHANNEL_SEEN_LIMIT = CHANNEL_CONFIG.seenLimit || 200;
 const CONTENT_SCRIPT_FILES = CONTENT_CONFIG.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
@@ -47,8 +43,6 @@ let wechatLoginPollTimer = 0;
 let wechatLoginWaitRunning = false;
 const wechatUserConfigCache = new Map();
 
-PLATFORM.storage?.local?.remove?.(LEGACY_CHANNEL_DEBUG_LOG_KEY)?.catch?.(() => null);
-
 function getLocalStorage() {
   const storage = PLATFORM.storage?.local;
   if (!storage?.get || !storage?.set || !storage?.remove) {
@@ -59,36 +53,6 @@ function getLocalStorage() {
 
 async function logChannelDebug(event, details = {}) {
   console.log(`[dogeclaw wechat] ${event}`, details);
-}
-
-function sanitizeFilenamePart(value, fallback) {
-  const sanitized = String(value || "")
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
-
-  return sanitized || fallback;
-}
-
-function inferFormat(url, providedFormat) {
-  if (providedFormat) {
-    return providedFormat.toLowerCase();
-  }
-
-  if (typeof url !== "string") {
-    return "img";
-  }
-
-  if (url.startsWith("data:image/")) {
-    const match = url.match(/^data:image\/([a-zA-Z0-9.+-]+);/);
-    return match?.[1]?.toLowerCase() || "png";
-  }
-
-  const withoutQuery = url.split("#")[0].split("?")[0];
-  const ext = withoutQuery.split(".").pop();
-  return ext && ext !== withoutQuery ? ext.toLowerCase() : "img";
 }
 
 function getPageStateKey(url) {
@@ -153,90 +117,6 @@ async function ensureContentScriptInjected(tabId) {
   return true;
 }
 
-async function getSavedImages() {
-  const result = await getLocalStorage().get(SAVED_IMAGES_KEY);
-  return Array.isArray(result[SAVED_IMAGES_KEY]) ? result[SAVED_IMAGES_KEY] : [];
-}
-
-async function setSavedImages(items) {
-  await getLocalStorage().set({
-    [SAVED_IMAGES_KEY]: items.slice(0, MAX_SAVED_IMAGES)
-  });
-}
-
-async function recordSavedImage(item) {
-  const current = await getSavedImages();
-  const filtered = current.filter((entry) => entry.id !== item.id && entry.url !== item.url);
-  filtered.unshift(item);
-  await setSavedImages(filtered);
-  return filtered.slice(0, MAX_SAVED_IMAGES);
-}
-
-async function clearSavedImages() {
-  await getLocalStorage().remove(SAVED_IMAGES_KEY);
-  return [];
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function fetchImageAsDataUrl(url) {
-  if (typeof url !== "string" || !url) {
-    return "";
-  }
-
-  if (url.startsWith("data:") || url.startsWith("blob:")) {
-    return url;
-  }
-
-  const response = await fetch(url, {
-    credentials: "include"
-  });
-
-  if (!response.ok) {
-    throw new Error(`fetch failed: ${response.status}`);
-  }
-
-  const blob = await response.blob();
-  return blobToDataUrl(blob);
-}
-
-async function sendUsageEvent(eventName, payload = {}) {
-  return false;
-}
-
-async function uploadError(payload = {}) {
-  return false;
-}
-
-async function checkForUpdates(reason = "manual") {
-  const manifest = PLATFORM.runtime?.getManifest ? PLATFORM.runtime.getManifest() : {};
-  return {
-    enabled: false,
-    reachable: false,
-    reason,
-    currentVersion: manifest.version,
-    latestVersion: manifest.version,
-    minimumSupportedVersion: manifest.version,
-    hasUpdate: false,
-    forceUpdate: false,
-    downloadUrl: "",
-    releaseNotes: "",
-    publishedAt: "",
-    checkedAt: Date.now()
-  };
-}
-
-async function getRemoteStatus() {
-  return checkForUpdates("disabled");
-}
-
 function createContextMenus() {
   if (!PLATFORM.contextMenus?.create) {
     return;
@@ -249,10 +129,6 @@ function createContextMenus() {
       contexts: ["selection"]
     });
   }).catch((error) => console.warn("Failed to create context menu:", error));
-}
-
-function stopCommandPolling() {
-  PLATFORM.alarms?.clear?.(COMMAND_POLL_ALARM)?.catch?.(() => null);
 }
 
 function startChannelPolling() {
@@ -292,7 +168,7 @@ async function runWechatLoginPoll() {
 }
 
 async function runWechatLoginWait(reason = "wait") {
-  const runtime = globalThis.OnecaiWechatChannel;
+  const runtime = globalThis.DogeclawWechatChannel;
   if (wechatLoginWaitRunning || !runtime?.waitForLogin) {
     return false;
   }
@@ -330,7 +206,7 @@ async function runWechatLoginWait(reason = "wait") {
 }
 
 async function pollWechatLoginIfPending(reason = "poll") {
-  const runtime = globalThis.OnecaiWechatChannel;
+  const runtime = globalThis.DogeclawWechatChannel;
   if (!runtime?.checkLoginStatus || !runtime?.getLoginState || !runtime?.getConfig) {
     await logChannelDebug("login poll skipped runtime missing", { reason });
     return false;
@@ -401,7 +277,7 @@ async function shouldKeepFastChannelPolling() {
   }
 
   try {
-    const runtime = globalThis.OnecaiWechatChannel;
+    const runtime = globalThis.DogeclawWechatChannel;
     const config = await runtime?.getConfig?.();
     return Boolean(config?.enabled && config?.token);
   } catch {
@@ -456,7 +332,7 @@ function normalizeWechatUpdate(update = {}) {
     ? message.item_list.find((item) => item?.type === 1 && item?.text_item?.text != null)
     : null;
   const text =
-    (globalThis.OnecaiWechatMedia?.bodyFromItemList ? OnecaiWechatMedia.bodyFromItemList(itemList) : "") ||
+    (globalThis.DogeclawWechatMedia?.bodyFromItemList ? DogeclawWechatMedia.bodyFromItemList(itemList) : "") ||
     textItem?.text_item?.text ||
     message.text?.content ||
     message.text ||
@@ -540,7 +416,7 @@ async function getWechatUserConfig(userId, contextToken = "") {
 
   let fetchOk = false;
   try {
-    const response = await OnecaiWechatChannel.getBotConfig({
+    const response = await DogeclawWechatChannel.getBotConfig({
       ilinkUserId: cacheKey,
       contextToken
     });
@@ -591,7 +467,7 @@ async function getWechatUserConfig(userId, contextToken = "") {
 }
 
 async function startWechatTypingIndicator(normalized) {
-  if (!globalThis.OnecaiWechatChannel?.sendTyping || !globalThis.OnecaiWechatChannel?.getBotConfig) {
+  if (!globalThis.DogeclawWechatChannel?.sendTyping || !globalThis.DogeclawWechatChannel?.getBotConfig) {
     return async () => {};
   }
 
@@ -612,7 +488,7 @@ async function startWechatTypingIndicator(normalized) {
 
   let stopped = false;
   const send = async (status) => {
-    return OnecaiWechatChannel.sendTyping({
+    return DogeclawWechatChannel.sendTyping({
       ilinkUserId: userId,
       typingTicket,
       status
@@ -689,7 +565,7 @@ async function handleWechatIncomingMessage(update) {
 
   await markSeenChannelMessage(normalized.id);
   try {
-    const prepared = await OnecaiWechatChannel.prepareIncomingMessage(normalized.message, {
+    const prepared = await DogeclawWechatChannel.prepareIncomingMessage(normalized.message, {
       label: `message ${normalized.id}`
     });
     normalized.rawText = prepared.text || normalized.rawText;
@@ -719,7 +595,7 @@ async function handleWechatIncomingMessage(update) {
     ];
     let reply = "";
     try {
-      const result = await OnecaiAgent.runTurn({
+      const result = await DogeclawAgent.runTurn({
         message: normalized.text,
         history: channelHistory,
         tools: true,
@@ -745,8 +621,8 @@ async function handleWechatIncomingMessage(update) {
       });
       reply = t("agent.processFailed", { error: error?.message || String(error) });
     }
-    const mediaArtifacts = globalThis.OnecaiBrowser?.drainArtifacts
-      ? OnecaiBrowser.drainArtifacts({ scope: `wechat:${normalized.fromUser}` })
+    const mediaArtifacts = globalThis.DogeclawBrowser?.drainArtifacts
+      ? DogeclawBrowser.drainArtifacts({ scope: `wechat:${normalized.fromUser}` })
       : [];
     if (!reply && mediaArtifacts.length) {
       reply = t("agent.done");
@@ -766,7 +642,7 @@ async function handleWechatIncomingMessage(update) {
     });
 
     const sendStartedAt = Date.now();
-    await OnecaiWechatChannel.sendMessage({
+    await DogeclawWechatChannel.sendMessage({
       toUser: normalized.fromUser,
       content: reply,
       mediaList: mediaArtifacts.map((artifact) => ({
@@ -799,11 +675,11 @@ async function handleWechatIncomingMessage(update) {
 }
 
 async function pollWechatChannel() {
-  if (!globalThis.OnecaiWechatChannel?.getConfig) {
+  if (!globalThis.DogeclawWechatChannel?.getConfig) {
     await logChannelDebug("poll skipped runtime missing");
     return false;
   }
-  const config = await OnecaiWechatChannel.getConfig();
+  const config = await DogeclawWechatChannel.getConfig();
   if (!config.enabled || !config.token) {
     await logChannelDebug("poll skipped config", {
       enabled: config.enabled,
@@ -819,7 +695,7 @@ async function pollWechatChannel() {
     timeoutMs: wechatNextPollTimeoutMs
   });
   const startedAt = Date.now();
-  const payload = await OnecaiWechatChannel.getUpdates({
+  const payload = await DogeclawWechatChannel.getUpdates({
     limit: 10,
     timeoutMs: Math.min(
       Math.max(Number(wechatNextPollTimeoutMs) || WECHAT_DEFAULT_LONG_POLL_TIMEOUT_MS, CHANNEL_MIN_LONG_POLL_TIMEOUT_MS),
@@ -875,13 +751,11 @@ async function pollChannels() {
 
 PLATFORM.runtime?.onInstalled?.addListener((details) => {
   createContextMenus();
-  stopCommandPolling();
   startChannelPolling();
 });
 
 PLATFORM.runtime?.onStartup?.addListener(() => {
   createContextMenus();
-  stopCommandPolling();
   startChannelPolling();
 });
 
@@ -895,36 +769,8 @@ if (PLATFORM.alarms?.onAlarm) {
 }
 
 createContextMenus();
-stopCommandPolling();
 startChannelPolling();
 kickChannelPolling(CHANNEL_DEFAULT_ACTIVE_POLL_DURATION_MS);
-
-self.addEventListener("error", (event) => {
-  uploadError({
-    source: "background",
-    context: "global_error",
-    message: event.message || "Unknown background error",
-    stack: event.error?.stack || "",
-    details: {
-      filename: event.filename || "",
-      lineno: event.lineno || 0,
-      colno: event.colno || 0
-    }
-  });
-});
-
-self.addEventListener("unhandledrejection", (event) => {
-  const reason = event.reason;
-  uploadError({
-    source: "background",
-    context: "unhandled_rejection",
-    message: reason?.message || String(reason || "Unhandled rejection"),
-    stack: reason?.stack || "",
-    details: {
-      reasonType: typeof reason
-    }
-  });
-});
 
 PLATFORM.action?.onClicked?.addListener(async (tab) => {
   if (!tab.id || !tab.url) {
@@ -934,16 +780,6 @@ PLATFORM.action?.onClicked?.addListener(async (tab) => {
   if (!canToggleFloatingButton(tab.url)) {
     return;
   }
-
-  sendUsageEvent("toolbar_clicked", {
-    pageHost: (() => {
-      try {
-        return new URL(tab.url).hostname;
-      } catch {
-        return "";
-      }
-    })()
-  });
 
   try {
     const currentEnabled = await getFloatingButtonEnabled(tab.url);
@@ -960,22 +796,6 @@ PLATFORM.action?.onClicked?.addListener(async (tab) => {
     await setActionToggleBadge(tab.id, nextEnabled);
   } catch (error) {
     console.error("Failed to toggle dogeclaw:", error);
-    uploadError({
-      source: "background",
-      context: "toggle_floating_button",
-      message: error?.message || String(error),
-      stack: error?.stack || "",
-      pageHost: (() => {
-        try {
-          return new URL(tab.url).hostname;
-        } catch {
-          return "";
-        }
-      })(),
-      details: {
-        tabId: tab.id
-      }
-    });
   }
 });
 
@@ -998,41 +818,12 @@ if (PLATFORM.contextMenus?.onClicked) {
         enabled: true
       });
       await sendMessageToTab(tab.id, {
-        type: "sendSelectionToOnecai",
+        type: "sendSelectionToDogeclaw",
         text: selectionText
       });
       await setActionToggleBadge(tab.id, true);
-      sendUsageEvent("context_selection_sent", {
-        pageHost: (() => {
-          try {
-            return new URL(tab.url).hostname;
-          } catch {
-            return "";
-          }
-        })(),
-        metadata: {
-          textLength: selectionText.length
-        }
-      });
     } catch (error) {
       console.error("Failed to send selection to dogeclaw:", error);
-      uploadError({
-        source: "background",
-        context: "context_send_selection",
-        message: error?.message || String(error),
-        stack: error?.stack || "",
-        pageHost: (() => {
-          try {
-            return new URL(tab.url).hostname;
-          } catch {
-            return "";
-          }
-        })(),
-        details: {
-          tabId: tab.id,
-          textLength: selectionText.length
-        }
-      });
     }
   });
 }
@@ -1052,56 +843,8 @@ PLATFORM.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "fetchText" && message.url) {
-    fetch(message.url)
-      .then(async (response) => {
-        sendResponse({
-          ok: response.ok,
-          status: response.status,
-          text: response.ok ? await response.text() : ""
-        });
-      })
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          status: 0,
-          error: String(error)
-        });
-      });
-
-    return true;
-  }
-
-  if (message?.type === "getSavedImages") {
-    getSavedImages()
-      .then((items) => sendResponse({ ok: true, items }))
-      .catch((error) => sendResponse({ ok: false, error: String(error), items: [] }));
-    return true;
-  }
-
-  if (message?.type === "clearSavedImages") {
-    clearSavedImages()
-      .then((items) => sendResponse({ ok: true, items }))
-      .catch((error) => sendResponse({ ok: false, error: String(error), items: [] }));
-    return true;
-  }
-
-  if (message?.type === "getRemoteStatus") {
-    getRemoteStatus()
-      .then((status) => sendResponse({ ok: true, status }))
-      .catch((error) => sendResponse({ ok: false, error: String(error), status: null }));
-    return true;
-  }
-
-  if (message?.type === "checkForUpdates") {
-    checkForUpdates(message.reason || "manual")
-      .then((status) => sendResponse({ ok: true, status }))
-      .catch((error) => sendResponse({ ok: false, error: String(error), status: null }));
-    return true;
-  }
-
   if (message?.type === "getLlmConfig") {
-    OnecaiLLM.getConfigStatus()
+    DogeclawLLM.getConfigStatus()
       .then(({ config, userConfigured }) => sendResponse({
         ok: true,
         userConfigured,
@@ -1115,7 +858,7 @@ PLATFORM.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "setLlmConfig") {
-    OnecaiLLM.setConfig(message.config)
+    DogeclawLLM.setConfig(message.config)
       .then((config) => sendResponse({
         ok: true,
         userConfigured: true,
@@ -1129,7 +872,7 @@ PLATFORM.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "channelConfig") {
-    const runtime = message.channel === "wechat" ? globalThis.OnecaiWechatChannel : null;
+    const runtime = message.channel === "wechat" ? globalThis.DogeclawWechatChannel : null;
     if (!runtime?.execute) {
       sendResponse({ ok: false, error: `Unknown channel: ${message.channel || ""}` });
       return false;
@@ -1170,129 +913,13 @@ PLATFORM.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "chatWithPet") {
-    OnecaiAgent.runTurn({
+  if (message?.type === "chatWithDogeclaw") {
+    DogeclawAgent.runTurn({
       message: message.message,
       history: message.history
     })
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
-    return true;
-  }
-
-  if (message?.type === "trackEvent" && message.eventName) {
-    sendUsageEvent(message.eventName, {
-      pageHost: message.pageHost || "",
-      metadata: message.metadata || {}
-    })
-      .then((sent) => sendResponse({ ok: true, sent }))
-      .catch((error) => sendResponse({ ok: false, error: String(error), sent: false }));
-    return true;
-  }
-
-  if (message?.type === "reportError") {
-    uploadError({
-      source: message.source || "content",
-      context: message.context || "",
-      message: message.message || "",
-      stack: message.stack || "",
-      pageHost: message.pageHost || "",
-      details: message.details || {}
-    })
-      .then((sent) => sendResponse({ ok: true, sent }))
-      .catch((error) => sendResponse({ ok: false, error: String(error), sent: false }));
-    return true;
-  }
-
-  if (message?.type === "fetchImageDataUrl" && message.url) {
-    if (String(message.url).startsWith("data:") || String(message.url).startsWith("blob:")) {
-      sendResponse({ ok: true, dataUrl: message.url });
-      return false;
-    }
-
-    fetch(message.url)
-      .then(async (response) => {
-        if (!response.ok) {
-          sendResponse({ ok: false, error: `fetch failed: ${response.status}` });
-          return;
-        }
-
-        const blob = await response.blob();
-        const dataUrl = await blobToDataUrl(blob);
-        sendResponse({ ok: true, dataUrl });
-      })
-      .catch((error) => {
-        sendResponse({ ok: false, error: String(error) });
-      });
-
-    return true;
-  }
-
-  if (message?.type === "downloadImage" && message.url) {
-    const format = inferFormat(message.url, message.format);
-    const host = sanitizeFilenamePart(message.hostname, "page");
-    const size = message.width && message.height ? `${message.width}x${message.height}` : "unknown";
-    const filename = `page-image-gallery/${host}/${Date.now()}-${size}.${format}`;
-
-    (async () => {
-      let previewDataUrl = typeof message.previewDataUrl === "string" ? message.previewDataUrl : "";
-      let downloadUrl = message.url;
-
-      try {
-        const fetchedDataUrl = await fetchImageAsDataUrl(message.url);
-        if (fetchedDataUrl) {
-          previewDataUrl = previewDataUrl || fetchedDataUrl;
-          downloadUrl = fetchedDataUrl;
-        }
-      } catch {
-        if (previewDataUrl) {
-          downloadUrl = previewDataUrl;
-        }
-      }
-
-      if (!PLATFORM.downloads?.download) {
-        sendResponse({ ok: false, error: "Extension downloads API unavailable" });
-        return;
-      }
-
-      const downloadId = await PLATFORM.downloads.download({
-        url: downloadUrl,
-        filename,
-        conflictAction: "uniquify",
-        saveAs: false
-      });
-
-      if (typeof downloadId !== "number") {
-        sendResponse({ ok: false, error: "download failed" });
-        return;
-      }
-
-      const savedItem = {
-        id: `${Date.now()}-${downloadId}`,
-        url: message.url,
-        previewDataUrl: previewDataUrl || "",
-        width: message.width || null,
-        height: message.height || null,
-        format,
-        hostname: message.hostname || "",
-        filename,
-        savedAt: Date.now()
-      };
-
-      const items = await recordSavedImage(savedItem);
-      sendResponse({
-        ok: true,
-        downloadId,
-        item: savedItem,
-        items
-      });
-    })().catch((error) => {
-      sendResponse({
-        ok: false,
-        error: String(error)
-      });
-    });
-
     return true;
   }
 
@@ -1326,7 +953,7 @@ function normalizeAgentStepForPort(step = {}) {
 }
 
 PLATFORM.runtime?.onConnect?.addListener((port) => {
-  if (port.name !== "chatWithPetStream") {
+  if (port.name !== "dogeclawChatStream") {
     return;
   }
 
@@ -1343,7 +970,7 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
     }
 
     controller = new AbortController();
-    OnecaiAgent.runTurnStream({
+    DogeclawAgent.runTurnStream({
       message: message.message,
       history: message.history,
       signal: controller.signal,

@@ -1,6 +1,6 @@
 (function () {
-  const CONFIG = globalThis.OnecaiConfig || {};
-  const PLATFORM = globalThis.DogePlatform || globalThis.OnecaiPlatform || {};
+  const CONFIG = globalThis.DogeclawConfig || {};
+  const PLATFORM = globalThis.DogeclawPlatform || {};
   const BROWSER_CONFIG = CONFIG.browser || {};
   const BROWSER_ACTION_TIMEOUT_MS = BROWSER_CONFIG.actionTimeoutMs || 10000;
   const MAX_SNAPSHOT_ITEMS = BROWSER_CONFIG.maxSnapshotItems || 80;
@@ -118,7 +118,7 @@
     }
 
     try {
-      const existing = await PLATFORM.tabs.sendMessage(tab.id, { type: "onecaiBrowserPing" });
+      const existing = await PLATFORM.tabs.sendMessage(tab.id, { type: "dogeclawBrowserPing" });
       if (existing?.ok) {
         return true;
       }
@@ -217,7 +217,7 @@
   async function snapshot(args = {}) {
     const tab = await getActiveTab();
     const result = await sendToTab(tab, {
-      type: "onecaiBrowserAction",
+      type: "dogeclawBrowserAction",
       action: "snapshot",
       maxItems: Math.min(Number(args.maxItems) || MAX_SNAPSHOT_ITEMS, MAX_SNAPSHOT_ITEMS)
     });
@@ -230,7 +230,7 @@
   async function setCaptureMode(tab, hidden) {
     try {
       await PLATFORM.tabs.sendMessage(tab.id, {
-        type: "onecaiCaptureMode",
+        type: "dogeclawCaptureMode",
         hidden: Boolean(hidden)
       });
     } catch {}
@@ -239,7 +239,7 @@
   async function showScreenshotInChat(tab, artifact) {
     try {
       const response = await PLATFORM.tabs.sendMessage(tab.id, {
-        type: "onecaiToolArtifact",
+        type: "dogeclawToolArtifact",
         artifact
       });
       return Boolean(response?.ok);
@@ -272,7 +272,7 @@
       captureOptions.quality = quality;
     }
 
-    if (args.includeOnecaiUi !== true) {
+    if (args.includeDogeclawUi !== true) {
       await setCaptureMode(tab, true);
       await new Promise((resolve) => setTimeout(resolve, 80));
     }
@@ -281,7 +281,7 @@
     try {
       dataUrl = await withTimeout(PLATFORM.tabs.captureVisibleTab(tab.windowId, captureOptions));
     } finally {
-      if (args.includeOnecaiUi !== true) {
+      if (args.includeDogeclawUi !== true) {
         await setCaptureMode(tab, false);
       }
     }
@@ -325,7 +325,7 @@
   async function click(args = {}) {
     const tab = await getActiveTab();
     return sendToTab(tab, {
-      type: "onecaiBrowserAction",
+      type: "dogeclawBrowserAction",
       action: "click",
       ref: args.ref || "",
       selector: args.selector || "",
@@ -336,7 +336,7 @@
   async function typeText(args = {}) {
     const tab = await getActiveTab();
     return sendToTab(tab, {
-      type: "onecaiBrowserAction",
+      type: "dogeclawBrowserAction",
       action: "type",
       ref: args.ref || "",
       selector: args.selector || "",
@@ -349,7 +349,7 @@
   async function scroll(args = {}) {
     const tab = await getActiveTab();
     return sendToTab(tab, {
-      type: "onecaiBrowserAction",
+      type: "dogeclawBrowserAction",
       action: "scroll",
       x: Number(args.x) || 0,
       y: Number(args.y) || 600
@@ -372,7 +372,7 @@
     throw new Error(`Unknown browser action: ${action || "(empty)"}`);
   }
 
-  globalThis.OnecaiBrowser = {
+  globalThis.DogeclawBrowser = {
     execute,
     drainArtifacts
   };

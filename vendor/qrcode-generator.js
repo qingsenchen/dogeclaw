@@ -2296,4 +2296,4 @@ var qrcode = function() {
     return qrcode;
 }));
 
-globalThis.OnecaiQrCode = qrcode;
+globalThis.DogeclawQrCode = qrcode;

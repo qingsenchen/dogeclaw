@@ -131,7 +131,6 @@ dogeclaw 会请求以下 Chrome 扩展权限：
 - `alarms`: 调度轮询任务
 - `tabs`: 协调页面级助手状态和浏览器操作
 - `contextMenus`: 添加选中文本相关的右键菜单
-- `downloads`: 在使用下载动作时保存用户选择的页面资源
 - `<all_urls>` host access: 在网页中加载助手 UI
 
 你发送给 dogeclaw 的内容，包括输入消息、选中文本、页面上下文、截图或工具结果，可能会发送到你配置的 LLM Provider。发送敏感信息前，请先确认服务商的数据政策。

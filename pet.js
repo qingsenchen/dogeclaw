@@ -1,5 +1,5 @@
 (function () {
-  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const PET_MOODS = {
     IDLE: "idle",
     HAPPY: "happy",
@@ -693,7 +693,7 @@
     };
   }
 
-  window.OnecaiPet = {
+  window.DogeclawPet = {
     createController: createPetController
   };
 })();

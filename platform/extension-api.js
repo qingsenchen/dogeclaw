@@ -76,7 +76,6 @@
       supportsAction: Boolean(api?.action),
       supportsAlarms: supports("alarms.create"),
       supportsContextMenus: supports("contextMenus.create"),
-      supportsDownloads: supports("downloads.download"),
       supportsScripting: supports("scripting.executeScript"),
       supportsTabsCapture: supports("tabs.captureVisibleTab")
     },
@@ -194,14 +193,8 @@
       },
       onClicked: api?.contextMenus?.onClicked
     },
-    downloads: {
-      download(options) {
-        return invoke("downloads.download", [options]);
-      }
-    },
     supports
   };
 
-  root.DogePlatform = platform;
-  root.OnecaiPlatform = platform;
+  root.DogeclawPlatform = platform;
 })();

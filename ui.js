@@ -1,5 +1,5 @@
 (function () {
-  const I18N = globalThis.OnecaiI18n || { t: (key, params) => {
+  const I18N = globalThis.DogeclawI18n || { t: (key, params) => {
     const fallback = {
       "image.alt": "Image"
     };
@@ -23,7 +23,7 @@
   function renderInlineMarkdown(value) {
     const codeSpans = [];
     let text = escapeHtml(value).replace(/`([^`]+)`/g, (_match, code) => {
-      const token = `@@ONECAI_CODE_${codeSpans.length}@@`;
+      const token = `@@DOGECLAW_CODE_${codeSpans.length}@@`;
       codeSpans.push(`<code>${code}</code>`);
       return token;
     });
@@ -48,7 +48,7 @@
       .replace(/_([^_\n]+)_/g, "<em>$1</em>");
 
     codeSpans.forEach((code, index) => {
-      text = text.replace(`@@ONECAI_CODE_${index}@@`, code);
+      text = text.replace(`@@DOGECLAW_CODE_${index}@@`, code);
     });
     return text;
   }
@@ -189,7 +189,7 @@
   }
 
   function renderLlmConfigForm({ state, onSave }) {
-    const llmDefaults = globalThis.OnecaiConfig?.llm?.defaultConfig || {};
+    const llmDefaults = globalThis.DogeclawConfig?.llm?.defaultConfig || {};
     const row = document.createElement("div");
     row.className = "pig-chat-row is-left is-component";
 
@@ -351,7 +351,7 @@
     return row;
   }
 
-  globalThis.OnecaiUI = {
+  globalThis.DogeclawUI = {
     createChatBubble,
     renderChannelConfigForm,
     renderLlmConfigForm,

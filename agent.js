@@ -1,6 +1,6 @@
 (function () {
-  const AGENT_CONFIG = globalThis.OnecaiConfig?.agent || {};
-  const t = (key, params) => (globalThis.OnecaiI18n?.t ? globalThis.OnecaiI18n.t(key, params) : key);
+  const AGENT_CONFIG = globalThis.DogeclawConfig?.agent || {};
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const DEFAULT_MAX_ITERATIONS = AGENT_CONFIG.maxIterations || 20;
   const DEFAULT_MAX_MESSAGES = AGENT_CONFIG.maxMessages || 20;
   const DEFAULT_MAX_CONTENT_LENGTH = AGENT_CONFIG.maxContentLength || 8192;
@@ -87,7 +87,7 @@
 
   async function executeToolCall(toolCall, toolContext = {}) {
     try {
-      const result = await OnecaiTools.execute(toolCall.name, toolCall.arguments || {}, toolContext);
+      const result = await DogeclawTools.execute(toolCall.name, toolCall.arguments || {}, toolContext);
       return {
         role: "tool",
         tool_call_id: toolCall.id,
@@ -137,9 +137,9 @@
     for (let iteration = 0; iteration < DEFAULT_MAX_ITERATIONS; iteration += 1) {
       onStep?.({ type: "llm_start", iteration });
 
-      const result = await OnecaiLLM.chatMessages({
+      const result = await DogeclawLLM.chatMessages({
         messages: context.getMessages(),
-        tools: tools === false ? null : OnecaiTools.getSchemas()
+        tools: tools === false ? null : DogeclawTools.getSchemas()
       });
 
       if (result.toolCalls?.length) {
@@ -186,9 +186,9 @@
       onStep?.({ type: "llm_start", iteration });
 
       let fullText = "";
-      const result = await OnecaiLLM.streamMessages({
+      const result = await DogeclawLLM.streamMessages({
         messages: context.getMessages(),
-        tools: tools === false ? null : OnecaiTools.getSchemas(),
+        tools: tools === false ? null : DogeclawTools.getSchemas(),
         signal,
         onDelta: (delta, accumulated) => {
           fullText = accumulated || `${fullText}${delta || ""}`;
@@ -229,7 +229,7 @@
     throw new Error(`Agent hit iteration limit (${DEFAULT_MAX_ITERATIONS})`);
   }
 
-  globalThis.OnecaiAgent = {
+  globalThis.DogeclawAgent = {
     runTurn,
     runTurnStream,
     createContext,
