@@ -474,7 +474,7 @@
         nextArgs.showInChat = nextArgs.showInChat ?? context.channel !== "wechat";
         nextArgs.includeDataUrl = Boolean(nextArgs.includeDataUrl);
       }
-      return DogeclawBrowser.execute(nextArgs);
+      return DogeclawBrowser.execute(nextArgs, context);
     }
 
     if (name === "system_config") {

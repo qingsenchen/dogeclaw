@@ -174,7 +174,13 @@
     };
   }
 
-  async function navigate(args = {}) {
+  function markDetachedNavigation(tab, context = {}) {
+    if (Number(context.tabId || 0) === Number(tab?.id || 0)) {
+      context.keepRunningAfterDisconnect = true;
+    }
+  }
+
+  async function navigate(args = {}, context = {}) {
     const url = String(args.url || "").trim();
     if (!url) {
       throw new Error("url is required");
@@ -183,6 +189,7 @@
     const tab = await getActiveTab();
     const targetUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
     await prepareTabForNavigation(tab);
+    markDetachedNavigation(tab, context);
     await PLATFORM.tabs.update(tab.id, { url: targetUrl });
     return { tabId: tab.id, url: targetUrl };
   }
@@ -208,22 +215,25 @@
     };
   }
 
-  async function go(args = {}) {
+  async function go(args = {}, context = {}) {
     const tab = await getActiveTab();
     const direction = String(args.direction || "back").toLowerCase();
     if (direction === "forward") {
       await prepareTabForNavigation(tab);
+      markDetachedNavigation(tab, context);
       await PLATFORM.tabs.goForward(tab.id);
       return { tabId: tab.id, direction: "forward" };
     }
     await prepareTabForNavigation(tab);
+    markDetachedNavigation(tab, context);
     await PLATFORM.tabs.goBack(tab.id);
     return { tabId: tab.id, direction: "back" };
   }
 
-  async function reload() {
+  async function reload(args = {}, context = {}) {
     const tab = await getActiveTab();
     await prepareTabForNavigation(tab);
+    markDetachedNavigation(tab, context);
     await PLATFORM.tabs.reload(tab.id);
     return { tabId: tab.id };
   }
@@ -370,14 +380,14 @@
     });
   }
 
-  async function execute(args = {}) {
+  async function execute(args = {}, context = {}) {
     const action = String(args.action || "").trim();
     if (action === "list_tabs") return listTabs();
     if (action === "current_tab") return currentTab();
     if (action === "new_tab") return newTab(args);
-    if (action === "navigate") return navigate(args);
-    if (action === "back" || action === "forward") return go({ direction: action });
-    if (action === "reload") return reload();
+    if (action === "navigate") return navigate(args, context);
+    if (action === "back" || action === "forward") return go({ direction: action }, context);
+    if (action === "reload") return reload(args, context);
     if (action === "snapshot") return snapshot(args);
     if (action === "screenshot") return screenshot(args);
     if (action === "click") return click(args);

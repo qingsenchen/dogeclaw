@@ -54,6 +54,8 @@
 	    chatHideTimer: 0,
 	    chatCollapseTimer: 0,
 	    chatHoldExpanded: false,
+	    navigationInProgress: false,
+	    navigationResetTimer: 0,
 	    llmConfig: {
       checked: false,
       providerConfigured: false,
@@ -376,7 +378,7 @@
           icon: message.icon ?? "logo",
           action: String(message.action || ""),
           actionLabel: String(message.actionLabel || ""),
-          pending: false,
+          pending: Boolean(message.pending),
           includeInHistory: message.includeInHistory !== false
         };
       })
@@ -477,11 +479,25 @@
         }
 
         if (message?.type === "dogeclawPrepareForNavigation") {
+          state.navigationInProgress = true;
+          if (state.navigationResetTimer) {
+            window.clearTimeout(state.navigationResetTimer);
+          }
+          state.navigationResetTimer = window.setTimeout(() => {
+            state.navigationInProgress = false;
+            state.navigationResetTimer = 0;
+          }, 10000);
           waitForNextPaint()
             .then(() => persistTabConversationNow())
             .then(() => sendResponse?.({ ok: true }))
             .catch((error) => sendResponse?.({ ok: false, error: error?.message || String(error) }));
           return true;
+        }
+
+        if (message?.type === "dogeclawAgentUpdate") {
+          applyAgentUpdate(message);
+          sendResponse?.({ ok: true });
+          return false;
         }
 
         if (message?.type === "dogeclawCaptureMode") {
@@ -1534,6 +1550,35 @@
     scheduleTabConversationPersist();
   }
 
+  function applyAgentUpdate(payload = {}) {
+    const replyId = String(payload.replyId || "");
+    const text = String(payload.text || "").trim();
+    if (!replyId || !text) {
+      return false;
+    }
+
+    const existing = state.hoverMessages.find((message) => message.id === replyId);
+    state.chatVisible = true;
+    if (payload.pending) {
+      setThinkingStatus(t("status.generating"));
+    } else {
+      setThinkingStatus("");
+    }
+
+    if (existing) {
+      updateHoverMessage(replyId, text, { pending: Boolean(payload.pending) });
+      return true;
+    }
+
+    addHoverMessage(text, "left", {
+      id: replyId,
+      pending: Boolean(payload.pending),
+      sessionId: state.pageConversationId,
+      source: "page"
+    });
+    return true;
+  }
+
   function getLlmHistory() {
     return state.hoverMessages
       .filter((message) => !message.pending && message.source !== "channel" && message.includeInHistory !== false)
@@ -1552,6 +1597,7 @@
 
     setThinkingStatus(t("status.understanding"));
     const replyId = addHoverMessage(t("chat.thinking"), "left", { pending: true });
+    const requestId = `agent-${replyId}`;
     await persistTabConversationNow();
     let fullText = "";
     let settled = false;
@@ -1625,14 +1671,16 @@
         }
       });
       port.onDisconnect.addListener(() => {
-        if (!settled) {
+        if (!settled && !state.navigationInProgress) {
           finish();
         }
       });
       port.postMessage({
         type: "start",
         message: text,
-        history
+        history,
+        requestId,
+        replyId
       });
     } catch (error) {
       settled = true;

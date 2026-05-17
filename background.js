@@ -103,6 +103,61 @@ async function setTabConversation(tabId, payload) {
   return conversation;
 }
 
+async function patchTabConversationMessage(tabId, replyId, patch = {}) {
+  if (!tabId || !replyId) {
+    return null;
+  }
+
+  const existing = await getTabConversation(tabId);
+  const messages = Array.isArray(existing?.messages) ? existing.messages.slice() : [];
+  const index = messages.findIndex((message) => message.id === replyId);
+  const nextMessage = {
+    id: replyId,
+    sessionId: existing?.pageConversationId || "",
+    source: "page",
+    side: "left",
+    text: "",
+    icon: "logo",
+    action: "",
+    actionLabel: "",
+    pending: false,
+    includeInHistory: true,
+    ...(index >= 0 ? messages[index] : {}),
+    ...patch
+  };
+
+  if (index >= 0) {
+    messages[index] = nextMessage;
+  } else {
+    messages.push(nextMessage);
+  }
+
+  let currentUrl = existing?.url || "";
+  try {
+    currentUrl = (await PLATFORM.tabs?.get?.(tabId))?.url || currentUrl;
+  } catch {}
+
+  return setTabConversation(tabId, {
+    ...(existing || {}),
+    url: currentUrl,
+    chatVisible: true,
+    messages
+  });
+}
+
+async function sendAgentUpdateToTab(tabId, payload) {
+  if (!tabId || !PLATFORM.tabs?.sendMessage) {
+    return;
+  }
+
+  try {
+    await PLATFORM.tabs.sendMessage(tabId, {
+      type: "dogeclawAgentUpdate",
+      ...payload
+    });
+  } catch {}
+}
+
 async function logChannelDebug(event, details = {}) {
   console.log(`[dogeclaw wechat] ${event}`, details);
 }
@@ -1035,9 +1090,51 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
 
   let disconnected = false;
   let controller = null;
+  let latestText = "";
+  const tabId = getSenderTabId(port.sender);
+  const toolContext = {
+    tabId,
+    keepRunningAfterDisconnect: false
+  };
+
+  function formatStreamError(rawError) {
+    const isAbort = /aborted|body stream buffer/i.test(rawError);
+    if (isAbort) {
+      return latestText || t("llm.interrupted");
+    }
+    if (rawError.includes("API key")) {
+      return t("llm.missingKey");
+    }
+    return t("llm.failed", { error: rawError || t("llm.requestFailed") });
+  }
+
+  async function persistDetachedReply(message, patch) {
+    if (!toolContext.keepRunningAfterDisconnect || !message?.replyId) {
+      return;
+    }
+
+    const text = String(patch.text || "").trim();
+    if (!text) {
+      return;
+    }
+
+    await patchTabConversationMessage(tabId, message.replyId, {
+      text,
+      pending: Boolean(patch.pending)
+    });
+    await sendAgentUpdateToTab(tabId, {
+      requestId: message.requestId || "",
+      replyId: message.replyId,
+      text,
+      pending: Boolean(patch.pending)
+    });
+  }
+
   port.onDisconnect.addListener(() => {
     disconnected = true;
-    controller?.abort();
+    if (!toolContext.keepRunningAfterDisconnect) {
+      controller?.abort();
+    }
   });
 
   port.onMessage.addListener((message) => {
@@ -1050,7 +1147,9 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
       message: message.message,
       history: message.history,
       signal: controller.signal,
-      onDelta: (delta) => {
+      toolContext,
+      onDelta: (delta, accumulated) => {
+        latestText = accumulated || `${latestText}${delta || ""}`;
         if (!disconnected) {
           port.postMessage({ type: "delta", delta });
         }
@@ -1061,18 +1160,33 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
         }
       },
       onDone: (result) => {
+        latestText = String(result?.content || latestText || "").trim();
+        if (disconnected) {
+          persistDetachedReply(message, {
+            text: latestText || t("llm.empty"),
+            pending: false
+          }).catch(() => null);
+          return;
+        }
+
         if (!disconnected) {
           port.postMessage({ type: "done", result });
           port.disconnect();
         }
       }
     }).catch((error) => {
-      if (!disconnected) {
-        const rawError = error?.message || String(error);
-        const isAbort = error?.name === "AbortError" || /aborted|body stream buffer/i.test(rawError);
-        port.postMessage({ type: "error", error: isAbort ? t("llm.interrupted") : rawError });
-        port.disconnect();
+      const rawError = error?.message || String(error);
+      if (disconnected) {
+        persistDetachedReply(message, {
+          text: formatStreamError(rawError),
+          pending: false
+        }).catch(() => null);
+        return;
       }
+
+      const isAbort = error?.name === "AbortError" || /aborted|body stream buffer/i.test(rawError);
+      port.postMessage({ type: "error", error: isAbort ? t("llm.interrupted") : rawError });
+      port.disconnect();
     });
   });
 });
