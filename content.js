@@ -2427,7 +2427,8 @@
       .pig-chat-bubble p,
       .pig-chat-bubble li,
       .pig-chat-bubble strong,
-      .pig-chat-bubble em {
+      .pig-chat-bubble em,
+      .pig-chat-bubble del {
         color: #ffffff;
       }
 
@@ -2435,6 +2436,7 @@
       .pig-chat-bubble ul,
       .pig-chat-bubble ol,
       .pig-chat-bubble blockquote,
+      .pig-chat-bubble hr,
       .pig-chat-bubble pre {
         margin: 0;
       }
@@ -2442,6 +2444,12 @@
       .pig-chat-bubble p + p,
       .pig-chat-bubble p + ul,
       .pig-chat-bubble p + ol,
+      .pig-chat-bubble p + hr,
+      .pig-chat-bubble hr + p,
+      .pig-chat-bubble ul + hr,
+      .pig-chat-bubble ol + hr,
+      .pig-chat-bubble hr + ul,
+      .pig-chat-bubble hr + ol,
       .pig-chat-bubble ul + p,
       .pig-chat-bubble ol + p,
       .pig-chat-bubble pre + p,
@@ -2485,6 +2493,12 @@
         padding-left: 8px;
         border-left: 2px solid rgba(255, 255, 255, 0.28);
         color: rgba(255, 255, 255, 0.82);
+      }
+
+      .pig-chat-bubble hr {
+        width: 100%;
+        border: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.22);
       }
 
       .pig-chat-bubble a {

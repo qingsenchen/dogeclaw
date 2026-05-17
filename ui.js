@@ -21,36 +21,45 @@
   }
 
   function renderInlineMarkdown(value) {
-    const codeSpans = [];
-    let text = escapeHtml(value).replace(/`([^`]+)`/g, (_match, code) => {
-      const token = `@@DOGECLAW_CODE_${codeSpans.length}@@`;
-      codeSpans.push(`<code>${code}</code>`);
+    const protectedHtml = [];
+    const protectHtml = (html) => {
+      const token = `\uE000DOGECLAWCODE${protectedHtml.length}\uE001`;
+      protectedHtml.push(html);
       return token;
+    };
+
+    let text = escapeHtml(value).replace(/`([^`]+)`/g, (_match, code) => {
+      return protectHtml(`<code>${code}</code>`);
     });
 
     text = text
       .replace(/!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[^)]+)\)/g, (_match, label, src) => {
-        const alt = label ? escapeHtml(label) : t("image.alt");
-        return `<img class="pig-chat-image" src="${src}" alt="${alt}" loading="lazy">`;
+        const alt = label || escapeHtml(t("image.alt"));
+        return protectHtml(`<img class="pig-chat-image" src="${src}" alt="${alt}" loading="lazy">`);
       })
       .replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, src) => {
         const safeSrc = src.replace(/&amp;/g, "&");
-        const alt = label ? escapeHtml(label) : t("image.alt");
-        return `<img class="pig-chat-image" src="${safeSrc}" alt="${alt}" loading="lazy">`;
+        const alt = label || escapeHtml(t("image.alt"));
+        return protectHtml(`<img class="pig-chat-image" src="${safeSrc}" alt="${alt}" loading="lazy">`);
       })
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, href) => {
         const safeHref = href.replace(/&amp;/g, "&");
-        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        return protectHtml(`<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`);
       })
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/~~([^~\n]+)~~/g, "<del>$1</del>")
       .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
       .replace(/_([^_\n]+)_/g, "<em>$1</em>");
 
-    codeSpans.forEach((code, index) => {
-      text = text.replace(`@@DOGECLAW_CODE_${index}@@`, code);
+    protectedHtml.forEach((html, index) => {
+      text = text.replaceAll(`\uE000DOGECLAWCODE${index}\uE001`, html);
     });
     return text;
+  }
+
+  function isThematicBreak(line) {
+    return /^(?:-\s*){3,}$/.test(line) || /^(?:\*\s*){3,}$/.test(line) || /^(?:_\s*){3,}$/.test(line);
   }
 
   function renderMarkdown(message) {
@@ -109,6 +118,13 @@
       if (!line.trim()) {
         flushParagraph();
         flushList();
+        return;
+      }
+
+      if (isThematicBreak(line.trim())) {
+        flushParagraph();
+        flushList();
+        html.push("<hr>");
         return;
       }
 
