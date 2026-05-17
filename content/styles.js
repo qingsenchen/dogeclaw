@@ -283,6 +283,7 @@
 
       .pig-chat-row {
         display: flex;
+        flex: 0 0 auto;
         width: 100%;
       }
 

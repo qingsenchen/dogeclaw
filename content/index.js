@@ -48,6 +48,7 @@
 	    },
 	    hoverMessages: [],
 	    hoverUserScrolled: false,
+	    hoverScrollToBottomRequested: false,
 	    hoverScrollDrag: {
 	      active: false,
 	      moved: false,
@@ -1082,14 +1083,24 @@
     state.hoverMessages = state.hoverMessages.slice(-MAX_HOVER_MESSAGES);
   }
 
+  function requestHoverMessagesScrollToBottom() {
+    state.hoverScrollToBottomRequested = true;
+    state.hoverUserScrolled = false;
+  }
+
   function getHoverMessagesScrollSnapshot() {
+    const pinToBottomRequested = Boolean(state.hoverScrollToBottomRequested);
+    state.hoverScrollToBottomRequested = false;
+
     if (!elements?.hoverMessages || elements.hoverMessages.hidden) {
       return { pinToBottom: true, scrollTop: 0 };
     }
 
     const maxScrollTop = Math.max(0, elements.hoverMessages.scrollHeight - elements.hoverMessages.clientHeight);
     return {
-      pinToBottom: !state.hoverUserScrolled && (maxScrollTop <= 2 || maxScrollTop - elements.hoverMessages.scrollTop <= 24),
+      pinToBottom:
+        pinToBottomRequested ||
+        (!state.hoverUserScrolled && (maxScrollTop <= 2 || maxScrollTop - elements.hoverMessages.scrollTop <= 24)),
       scrollTop: elements.hoverMessages.scrollTop
     };
   }
@@ -1250,9 +1261,7 @@
     state.hoverMessages.push(item);
 
     trimHoverMessagesToLimit();
-    if (item.side === "right") {
-      state.hoverUserScrolled = false;
-    }
+    requestHoverMessagesScrollToBottom();
     state.chatVisible = true;
     if (state.chatHideTimer) {
       window.clearTimeout(state.chatHideTimer);
@@ -1292,6 +1301,7 @@
       trimHoverMessagesToLimit();
     }
 
+    requestHoverMessagesScrollToBottom();
     state.chatVisible = true;
     if (state.chatHideTimer) {
       window.clearTimeout(state.chatHideTimer);
@@ -1338,8 +1348,12 @@
       return;
     }
 
+    const wasPending = Boolean(item.pending);
     item.text = String(text || "").trim() || item.text;
     item.pending = options.pending ?? false;
+    if (wasPending || item.pending) {
+      requestHoverMessagesScrollToBottom();
+    }
     if (item.pending) {
       state.chatVisible = true;
       if (state.chatHideTimer) {
