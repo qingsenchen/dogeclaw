@@ -39,6 +39,7 @@
         --pig-compact-width: 132px;
         --pig-expanded-width: min(280px, calc(100vw - 16px));
         --pig-expand-offset: 0px;
+        --pig-chat-button-gap: 18px;
         position: relative;
         left: 0;
         top: 0;
@@ -132,6 +133,7 @@
         flex: 0 0 auto;
         margin-left: -2px;
         cursor: grab;
+        z-index: 8;
       }
 
       .pig-icon-wrap:focus-visible {
@@ -147,6 +149,7 @@
         height: 32px;
         align-items: center;
         justify-content: center;
+        z-index: 1;
       }
 
       .pig-icon {
@@ -219,7 +222,7 @@
         position: absolute;
         left: 0;
         right: 0;
-        bottom: calc(100% + 10px);
+        bottom: calc(100% + var(--pig-chat-button-gap, 18px));
         display: flex;
         flex-direction: column;
         gap: 8px;
@@ -241,7 +244,7 @@
 	      }
 
       .pig-chat-messages.is-below-button {
-        top: calc(100% + 10px);
+        top: calc(100% + var(--pig-chat-button-gap, 18px));
         bottom: auto;
         transform-origin: top center;
       }

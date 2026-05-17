@@ -14,6 +14,7 @@
   const PLATFORM = globalThis.DogeclawPlatform || {};
   const FLOATING_BUTTON_COMPACT_WIDTH = 132;
   const FLOATING_BUTTON_EDGE_PADDING = 8;
+  const CHAT_MESSAGES_BUTTON_GAP = 10;
   const DRAG_START_THRESHOLD = 4;
   const LLM_CONFIG_TIP_ID = "dogeclaw-llm-config-tip";
   const TAB_HISTORY_SAVE_DELAY_MS = 80;
@@ -646,7 +647,7 @@
     }
 
     const buttonRect = elements.button.getBoundingClientRect();
-    const gap = 10;
+    const gap = CHAT_MESSAGES_BUTTON_GAP;
     const minHeight = Math.min(120, Math.max(64, Math.floor(window.innerHeight * 0.36)));
     const aboveHeight = Math.max(0, Math.floor(buttonRect.top - FLOATING_BUTTON_EDGE_PADDING - gap));
     const belowHeight = Math.max(0, Math.floor(window.innerHeight - buttonRect.bottom - FLOATING_BUTTON_EDGE_PADDING - gap));
@@ -1665,6 +1666,7 @@
 
     const button = document.createElement("div");
     button.className = "pig-floating-button";
+    button.style.setProperty("--pig-chat-button-gap", `${CHAT_MESSAGES_BUTTON_GAP}px`);
 
     const buttonAura = document.createElement("span");
     buttonAura.className = "pig-fab-aura";
