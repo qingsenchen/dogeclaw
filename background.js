@@ -11,6 +11,7 @@ const SEND_SELECTION_MENU_ID = BACKGROUND_CONFIG.sendSelectionMenuId || "dogecla
 const CHANNEL_POLL_ALARM = BACKGROUND_CONFIG.channelPollAlarm || "dogeclaw-channel-poll";
 const CHANNEL_HISTORY_KEY = STORAGE_CONFIG.channelHistoryKey || "dogeclaw-channel-history";
 const CHANNEL_SEEN_KEY = STORAGE_CONFIG.channelSeenKey || "dogeclaw-channel-seen";
+const TAB_CONVERSATION_KEY_PREFIX = STORAGE_CONFIG.tabConversationKeyPrefix || "dogeclaw-tab-conversation:";
 const CHANNEL_HISTORY_LIMIT = CHANNEL_CONFIG.historyLimit || 12;
 const CHANNEL_SEEN_LIMIT = CHANNEL_CONFIG.seenLimit || 200;
 const CONTENT_SCRIPT_FILES = CONTENT_CONFIG.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
@@ -49,6 +50,57 @@ function getLocalStorage() {
     throw new Error("Extension storage API unavailable");
   }
   return storage;
+}
+
+function getTabConversationStorage() {
+  return PLATFORM.storage?.session || getLocalStorage();
+}
+
+function getTabConversationKey(tabId) {
+  return `${TAB_CONVERSATION_KEY_PREFIX}${tabId}`;
+}
+
+function getSenderTabId(sender) {
+  const tabId = Number(sender?.tab?.id || 0);
+  return Number.isInteger(tabId) && tabId > 0 ? tabId : 0;
+}
+
+function normalizeTabConversation(payload = {}) {
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const maxMessages = CONTENT_CONFIG.maxHoverMessages || 24;
+  return {
+    version: 1,
+    url: String(payload.url || "").slice(0, 2048),
+    pageConversationId: String(payload.pageConversationId || "").slice(0, 2048),
+    chatVisible: Boolean(payload.chatVisible),
+    chatHoldExpanded: Boolean(payload.chatHoldExpanded),
+    savedAt: Number(payload.savedAt) || Date.now(),
+    messages: messages.slice(-maxMessages).map((message) => ({
+      id: String(message?.id || ""),
+      type: message?.type === "tip" ? "tip" : "message",
+      sessionId: String(message?.sessionId || ""),
+      source: String(message?.source || "page"),
+      side: message?.side === "left" ? "left" : "right",
+      text: String(message?.text || "").slice(0, 16000),
+      icon: message?.icon === false || message?.icon === null ? false : String(message?.icon ?? "logo").slice(0, 2048),
+      action: String(message?.action || "").slice(0, 128),
+      actionLabel: String(message?.actionLabel || "").slice(0, 128),
+      pending: Boolean(message?.pending),
+      includeInHistory: message?.includeInHistory !== false
+    })).filter((message) => message.id && message.text)
+  };
+}
+
+async function getTabConversation(tabId) {
+  const key = getTabConversationKey(tabId);
+  const result = await getTabConversationStorage().get(key);
+  return result[key] || null;
+}
+
+async function setTabConversation(tabId, payload) {
+  const conversation = normalizeTabConversation(payload);
+  await getTabConversationStorage().set({ [getTabConversationKey(tabId)]: conversation });
+  return conversation;
 }
 
 async function logChannelDebug(event, details = {}) {
@@ -828,7 +880,7 @@ if (PLATFORM.contextMenus?.onClicked) {
   });
 }
 
-PLATFORM.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
+PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
   if (message?.type === "getFloatingButtonEnabled" && message.url) {
     getFloatingButtonEnabled(message.url)
       .then((enabled) => sendResponse({ ok: true, enabled }))
@@ -840,6 +892,30 @@ PLATFORM.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
     setFloatingButtonEnabled(message.url, message.enabled)
       .then((enabled) => sendResponse({ ok: true, enabled }))
       .catch((error) => sendResponse({ ok: false, enabled: true, error: String(error) }));
+    return true;
+  }
+
+  if (message?.type === "getTabConversation") {
+    const tabId = getSenderTabId(sender);
+    if (!tabId) {
+      sendResponse({ ok: false, error: "tab id is unavailable", conversation: null });
+      return false;
+    }
+    getTabConversation(tabId)
+      .then((conversation) => sendResponse({ ok: true, conversation }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error), conversation: null }));
+    return true;
+  }
+
+  if (message?.type === "setTabConversation") {
+    const tabId = getSenderTabId(sender);
+    if (!tabId) {
+      sendResponse({ ok: false, error: "tab id is unavailable" });
+      return false;
+    }
+    setTabConversation(tabId, message.conversation || {})
+      .then((conversation) => sendResponse({ ok: true, conversation }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
     return true;
   }
 

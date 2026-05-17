@@ -16,6 +16,7 @@
   const FLOATING_BUTTON_EDGE_PADDING = 8;
   const DRAG_START_THRESHOLD = 4;
   const LLM_CONFIG_TIP_ID = "dogeclaw-llm-config-tip";
+  const TAB_HISTORY_SAVE_DELAY_MS = 80;
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
 
   [ROOT_ID, ...(CONTENT_CONFIG.legacyRootIds || [])].forEach((id) => {
@@ -80,6 +81,8 @@
   state.pageConversationId = getPageConversationId();
   const browserRefs = new Map();
   let browserRefCounter = 0;
+  let tabHistorySaveTimer = 0;
+  let tabHistorySavePromise = Promise.resolve();
 
   function getPageConversationId() {
     try {
@@ -333,6 +336,115 @@
     }
   }
 
+  function serializeHoverMessages() {
+    return state.hoverMessages
+      .filter((message) => message?.text)
+      .map((message) => ({
+        id: String(message.id || ""),
+        type: message.type === "tip" ? "tip" : "message",
+        sessionId: String(message.sessionId || ""),
+        source: String(message.source || "page"),
+        side: message.side === "left" ? "left" : "right",
+        text: String(message.text || ""),
+        icon: message.icon ?? "logo",
+        action: message.action || "",
+        actionLabel: message.actionLabel || "",
+        pending: Boolean(message.pending),
+        includeInHistory: message.includeInHistory !== false
+      }));
+  }
+
+  function normalizeRestoredHoverMessages(messages) {
+    if (!Array.isArray(messages)) {
+      return [];
+    }
+
+    return messages
+      .map((message) => {
+        const text = String(message?.text || "").trim();
+        const id = String(message?.id || "").trim();
+        if (!text || !id) {
+          return null;
+        }
+        return {
+          id,
+          type: message.type === "tip" ? "tip" : "message",
+          sessionId: String(message.sessionId || state.pageConversationId),
+          source: String(message.source || "page"),
+          side: message.side === "left" ? "left" : "right",
+          text,
+          icon: message.icon ?? "logo",
+          action: String(message.action || ""),
+          actionLabel: String(message.actionLabel || ""),
+          pending: false,
+          includeInHistory: message.includeInHistory !== false
+        };
+      })
+      .filter(Boolean)
+      .slice(-MAX_HOVER_MESSAGES);
+  }
+
+  async function loadTabConversationHistory() {
+    const response = await safeSendRuntimeMessage({ type: "getTabConversation" });
+    if (!response?.ok || !response.conversation) {
+      return false;
+    }
+
+    const restoredMessages = normalizeRestoredHoverMessages(response.conversation.messages);
+    if (!restoredMessages.length) {
+      return false;
+    }
+
+    state.hoverMessages = restoredMessages;
+    state.chatVisible = Boolean(response.conversation.chatVisible);
+    state.chatHoldExpanded = Boolean(response.conversation.chatHoldExpanded);
+    return true;
+  }
+
+  function buildTabConversationPayload() {
+    syncPageConversationId();
+    return {
+      url: location.href,
+      pageConversationId: state.pageConversationId,
+      chatVisible: state.chatVisible,
+      chatHoldExpanded: state.chatHoldExpanded,
+      savedAt: Date.now(),
+      messages: serializeHoverMessages()
+    };
+  }
+
+  async function persistTabConversationNow() {
+    if (tabHistorySaveTimer) {
+      window.clearTimeout(tabHistorySaveTimer);
+      tabHistorySaveTimer = 0;
+    }
+
+    const conversation = buildTabConversationPayload();
+    tabHistorySavePromise = safeSendRuntimeMessage({
+      type: "setTabConversation",
+      conversation
+    }).catch(() => null);
+    await tabHistorySavePromise;
+  }
+
+  function scheduleTabConversationPersist() {
+    if (tabHistorySaveTimer) {
+      window.clearTimeout(tabHistorySaveTimer);
+    }
+    tabHistorySaveTimer = window.setTimeout(() => {
+      tabHistorySaveTimer = 0;
+      persistTabConversationNow().catch(() => null);
+    }, TAB_HISTORY_SAVE_DELAY_MS);
+  }
+
+  function waitForNextPaint() {
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(resolve);
+      });
+    });
+  }
+
   let elements;
   elements = createUI();
   anchorRootToCurrentPosition();
@@ -362,6 +474,14 @@
         if (message?.type === "dogeclawBrowserPing") {
           sendResponse?.({ ok: true });
           return false;
+        }
+
+        if (message?.type === "dogeclawPrepareForNavigation") {
+          waitForNextPaint()
+            .then(() => persistTabConversationNow())
+            .then(() => sendResponse?.({ ok: true }))
+            .catch((error) => sendResponse?.({ ok: false, error: error?.message || String(error) }));
+          return true;
         }
 
         if (message?.type === "dogeclawCaptureMode") {
@@ -740,6 +860,7 @@
     state.chatVisible = Boolean(visible);
     scheduleSync();
     renderHoverMessages();
+    scheduleTabConversationPersist();
   }
 
   function collapseTransientChat() {
@@ -756,6 +877,7 @@
     elements.buttonHoverInput?.blur?.();
     renderHoverMessages();
     scheduleSync();
+    scheduleTabConversationPersist();
   }
 
   function hideChatIfCollapsed(event) {
@@ -782,6 +904,7 @@
         setChatVisible(false);
       }
     }, 6000);
+    scheduleTabConversationPersist();
   }
 
   function setActiveConfigPanel(panel) {
@@ -1319,6 +1442,7 @@
       state.chatHideTimer = 0;
     }
     renderHoverMessages();
+    scheduleTabConversationPersist();
     return item.id;
   }
 
@@ -1357,6 +1481,7 @@
       state.chatHideTimer = 0;
     }
     renderHoverMessages();
+    scheduleTabConversationPersist();
     return id;
   }
 
@@ -1375,6 +1500,7 @@
       renderHoverMessages();
       scheduleSync();
     }
+    scheduleTabConversationPersist();
     return true;
   }
 
@@ -1405,6 +1531,7 @@
       }
     }
     renderHoverMessages();
+    scheduleTabConversationPersist();
   }
 
   function getLlmHistory() {
@@ -1417,7 +1544,7 @@
       .slice(-8);
   }
 
-  function requestPetReply(message, history) {
+  async function requestPetReply(message, history) {
     const text = String(message || "").trim();
     if (!text) {
       return;
@@ -1425,6 +1552,7 @@
 
     setThinkingStatus(t("status.understanding"));
     const replyId = addHoverMessage(t("chat.thinking"), "left", { pending: true });
+    await persistTabConversationNow();
     let fullText = "";
     let settled = false;
     let port = null;
@@ -1536,7 +1664,7 @@
     return true;
   }
 
-  function sendTextToDogeclaw(text) {
+  async function sendTextToDogeclaw(text) {
     const value = String(text || "").trim();
     if (!value) {
       return false;
@@ -1545,7 +1673,7 @@
     syncPageConversationId();
     const history = getLlmHistory();
     addHoverMessage(value, "right", { sessionId: state.pageConversationId, source: "page" });
-    requestPetReply(value, history);
+    await requestPetReply(value, history);
     return true;
   }
 
@@ -1572,7 +1700,7 @@
     }
 
     input.value = "";
-    sendTextToDogeclaw(value);
+    await sendTextToDogeclaw(value);
   }
 
   function onPointerDown(event) {
@@ -3081,8 +3209,13 @@
 
   async function start() {
     await loadFloatingButtonVisibility();
+    await loadTabConversationHistory();
     ensureUiMounted();
     applySavedPosition();
+    if (state.hoverMessages.length) {
+      renderHoverMessages();
+      scheduleSync();
+    }
     startMountWatchdog();
   }
 

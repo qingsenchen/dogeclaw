@@ -8,6 +8,7 @@
     storage: {
       llmConfigKey: "dogeclaw-llm-config",
       floatingButtonStateKeyPrefix: "dogeclaw-floating-enabled:",
+      tabConversationKeyPrefix: "dogeclaw-tab-conversation:",
       wechatConfigKey: "dogeclaw-channel-wechat-config",
       wechatStateKey: "dogeclaw-channel-wechat-state",
       wechatLoginKey: "dogeclaw-channel-wechat-login",

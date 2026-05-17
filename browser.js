@@ -141,6 +141,16 @@
     return result;
   }
 
+  async function prepareTabForNavigation(tab) {
+    if (!tab?.id || !canAccessTabUrl(tab.url)) {
+      return;
+    }
+
+    try {
+      await withTimeout(PLATFORM.tabs.sendMessage(tab.id, { type: "dogeclawPrepareForNavigation" }), 800);
+    } catch {}
+  }
+
   async function listTabs() {
     assertExtensionApi("tabs.query", PLATFORM.tabs?.query);
     const tabs = await PLATFORM.tabs.query({});
@@ -172,6 +182,7 @@
 
     const tab = await getActiveTab();
     const targetUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    await prepareTabForNavigation(tab);
     await PLATFORM.tabs.update(tab.id, { url: targetUrl });
     return { tabId: tab.id, url: targetUrl };
   }
@@ -201,15 +212,18 @@
     const tab = await getActiveTab();
     const direction = String(args.direction || "back").toLowerCase();
     if (direction === "forward") {
+      await prepareTabForNavigation(tab);
       await PLATFORM.tabs.goForward(tab.id);
       return { tabId: tab.id, direction: "forward" };
     }
+    await prepareTabForNavigation(tab);
     await PLATFORM.tabs.goBack(tab.id);
     return { tabId: tab.id, direction: "back" };
   }
 
   async function reload() {
     const tab = await getActiveTab();
+    await prepareTabForNavigation(tab);
     await PLATFORM.tabs.reload(tab.id);
     return { tabId: tab.id };
   }
