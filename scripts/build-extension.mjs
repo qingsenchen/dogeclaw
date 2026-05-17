@@ -24,7 +24,7 @@ const extensionEntries = [
   "background-loader.js",
   "browser.js",
   "config.js",
-  "content.js",
+  "content",
   "i18n.js",
   "llm.js",
   "pet.js",

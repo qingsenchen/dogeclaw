@@ -24,12 +24,7 @@ Thanks for your interest in contributing to dogeclaw. The project focuses on bro
 Run JavaScript syntax checks before opening a pull request:
 
 ```sh
-node --check background.js
-node --check channels/wechat.js
-node --check content.js
-node --check i18n.js
-node --check llm.js
-node --check tools.js
+npm run check
 ```
 
 Run a basic secret scan before publishing or opening a pull request:

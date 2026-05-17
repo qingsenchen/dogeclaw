@@ -14,7 +14,14 @@ const CHANNEL_SEEN_KEY = STORAGE_CONFIG.channelSeenKey || "dogeclaw-channel-seen
 const TAB_CONVERSATION_KEY_PREFIX = STORAGE_CONFIG.tabConversationKeyPrefix || "dogeclaw-tab-conversation:";
 const CHANNEL_HISTORY_LIMIT = CHANNEL_CONFIG.historyLimit || 12;
 const CHANNEL_SEEN_LIMIT = CHANNEL_CONFIG.seenLimit || 200;
-const CONTENT_SCRIPT_FILES = CONTENT_CONFIG.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
+const CONTENT_SCRIPT_FILES = CONTENT_CONFIG.scriptFiles || [
+  "config.js",
+  "pet.js",
+  "ui.js",
+  "content/styles.js",
+  "content/browser-actions.js",
+  "content/index.js"
+];
 const CHANNEL_ALARM_PERIOD_MINUTES = CHANNEL_CONFIG.alarmPeriodMinutes || 0.5;
 const CHANNEL_FAST_POLL_DELAY_MS = CHANNEL_CONFIG.fastPollDelayMs || 250;
 const CHANNEL_EMPTY_POLL_DELAY_MS = CHANNEL_CONFIG.emptyPollDelayMs || 2000;

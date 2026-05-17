@@ -2,7 +2,14 @@
   const CONFIG = globalThis.DogeclawConfig || {};
   const PLATFORM = globalThis.DogeclawPlatform || {};
   const WEATHER_TIMEOUT_MS = CONFIG.tools?.weatherTimeoutMs || 12000;
-  const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
+  const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || [
+    "config.js",
+    "pet.js",
+    "ui.js",
+    "content/styles.js",
+    "content/browser-actions.js",
+    "content/index.js"
+  ];
 
   const TOOL_SCHEMAS = [
     {

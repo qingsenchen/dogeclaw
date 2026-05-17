@@ -151,7 +151,7 @@ dogeclaw に送信した内容、入力メッセージ、選択テキスト、�
 ├── i18n.js                    # Runtime localization dictionaries and helpers
 ├── background.js              # Background agent routing, tools, channels
 ├── background-loader.js       # Chrome/Edge Service Worker script loader
-├── content.js                 # In-page assistant UI and page bridge
+├── content/                   # In-page assistant UI, page bridge, and styles
 ├── ui.js                      # Shared UI rendering helpers
 ├── pet.js                     # Floating pet animation and interaction logic
 ├── llm.js                     # OpenAI-compatible LLM client

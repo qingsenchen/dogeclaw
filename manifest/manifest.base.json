@@ -39,7 +39,9 @@
         "i18n.js",
         "pet.js",
         "ui.js",
-        "content.js"
+        "content/styles.js",
+        "content/browser-actions.js",
+        "content/index.js"
       ],
       "run_at": "document_idle"
     }

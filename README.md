@@ -151,7 +151,7 @@ No API key is included in this repository. Store only your own key locally throu
 ├── i18n.js                    # Runtime localization dictionaries and helpers
 ├── background.js              # Service worker, agent routing, tools, channels
 ├── background-loader.js       # Chrome/Edge service worker script loader
-├── content.js                 # In-page assistant UI and page bridge
+├── content/                   # In-page assistant UI, page bridge, and styles
 ├── ui.js                      # Shared UI rendering helpers
 ├── pet.js                     # Floating pet animation and interaction logic
 ├── llm.js                     # OpenAI-compatible LLM client

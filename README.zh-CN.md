@@ -151,7 +151,7 @@ dogeclaw 会请求以下 Chrome 扩展权限：
 ├── i18n.js                    # 运行时本地化字典和辅助函数
 ├── background.js              # 后台 agent 路由、工具和频道
 ├── background-loader.js       # Chrome/Edge Service Worker 脚本加载器
-├── content.js                 # 页面内助手 UI 和页面桥接
+├── content/                   # 页面内助手 UI、页面桥接和样式
 ├── ui.js                      # 共享 UI 渲染辅助
 ├── pet.js                     # 悬浮宠物动画和交互逻辑
 ├── llm.js                     # OpenAI-compatible LLM 客户端

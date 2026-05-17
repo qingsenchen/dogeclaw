@@ -7,7 +7,14 @@
   const SCREENSHOT_DATA_URL_LIMIT = BROWSER_CONFIG.screenshotDataUrlLimit || 1200000;
   const SCREENSHOT_JPEG_QUALITY = BROWSER_CONFIG.screenshotJpegQuality || 90;
   const MAX_ARTIFACTS = BROWSER_CONFIG.maxArtifacts || 20;
-  const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || ["config.js", "pet.js", "ui.js", "content.js"];
+  const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || [
+    "config.js",
+    "pet.js",
+    "ui.js",
+    "content/styles.js",
+    "content/browser-actions.js",
+    "content/index.js"
+  ];
   const browserArtifacts = [];
 
   function assertExtensionApi(name, value) {
