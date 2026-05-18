@@ -35,6 +35,8 @@ const CHANNEL_MIN_LONG_POLL_TIMEOUT_MS = CHANNEL_CONFIG.minLongPollTimeoutMs || 
 const TAB_CONVERSATION_MESSAGE_TEXT_LIMIT = STORAGE_CONFIG.tabConversationMessageTextLimit || 16000;
 const TAB_CONVERSATION_IMAGE_DATA_URL_LIMIT =
   STORAGE_CONFIG.tabConversationImageDataUrlLimit || BROWSER_CONFIG.screenshotDataUrlLimit || 1200000;
+const REMOTE_IMAGE_FETCH_TIMEOUT_MS = CONTENT_CONFIG.remoteImageFetchTimeoutMs || 15000;
+const REMOTE_IMAGE_FETCH_MAX_BYTES = CONTENT_CONFIG.remoteImageFetchMaxBytes || 12 * 1024 * 1024;
 const DATA_IMAGE_MARKDOWN_RE = /!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/;
 const WECHAT_DEFAULT_LONG_POLL_TIMEOUT_MS = WECHAT_CONFIG.defaultLongPollTimeoutMs || 35000;
 const WECHAT_MAX_LONG_POLL_TIMEOUT_MS = WECHAT_CONFIG.maxLongPollTimeoutMs || 35000;
@@ -97,6 +99,72 @@ function normalizeTabConversationMessageText(message) {
     return text.length <= TAB_CONVERSATION_IMAGE_DATA_URL_LIMIT ? text : "";
   }
   return text.slice(0, TAB_CONVERSATION_MESSAGE_TEXT_LIMIT);
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function getFileNameFromUrl(url, mimeType = "") {
+  try {
+    const pathname = new URL(url).pathname;
+    const name = decodeURIComponent(pathname.split("/").filter(Boolean).pop() || "");
+    if (name) {
+      return name.slice(0, 160);
+    }
+  } catch {}
+  const extension = String(mimeType || "").split("/")[1] || "jpg";
+  return `image.${extension.replace(/[^a-z0-9.+-]/gi, "") || "jpg"}`;
+}
+
+async function fetchImageAsDataUrl(url) {
+  const imageUrl = String(url || "").trim();
+  if (!/^https?:\/\//i.test(imageUrl)) {
+    throw new Error("Only http(s) image URLs can be fetched");
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REMOTE_IMAGE_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(imageUrl, {
+      credentials: "include",
+      redirect: "follow",
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(`Image request failed: ${response.status}`);
+    }
+
+    const contentLength = Number(response.headers.get("content-length") || 0);
+    if (contentLength > REMOTE_IMAGE_FETCH_MAX_BYTES) {
+      throw new Error("Image is too large");
+    }
+
+    const mimeType = String(response.headers.get("content-type") || "image/jpeg").split(";")[0].trim() || "image/jpeg";
+    if (!/^image\//i.test(mimeType)) {
+      throw new Error("URL did not return an image");
+    }
+
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > REMOTE_IMAGE_FETCH_MAX_BYTES) {
+      throw new Error("Image is too large");
+    }
+
+    return {
+      dataUrl: `data:${mimeType};base64,${arrayBufferToBase64(buffer)}`,
+      mimeType,
+      fileName: getFileNameFromUrl(imageUrl, mimeType),
+      size: buffer.byteLength
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function normalizeTabConversation(payload = {}) {
@@ -1035,6 +1103,13 @@ PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
         }
       }))
       .catch((error) => sendResponse({ ok: false, error: String(error), config: null }));
+    return true;
+  }
+
+  if (message?.type === "fetchImageAsDataUrl") {
+    fetchImageAsDataUrl(message.url)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
     return true;
   }
 

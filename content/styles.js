@@ -40,6 +40,7 @@
         --pig-expanded-width: min(280px, calc(100vw - 16px));
         --pig-expand-offset: 0px;
         --pig-chat-button-gap: 18px;
+        --pig-drop-primary: #93c5fd;
         position: relative;
         left: 0;
         top: 0;
@@ -71,7 +72,8 @@
       .pig-floating-button:hover,
       .pig-floating-button:focus-within,
       .pig-floating-button.is-thinking,
-      .pig-floating-button.is-chat-holding {
+      .pig-floating-button.is-chat-holding,
+      .pig-floating-button.is-input-image-dragging {
         width: var(--pig-expanded-width);
         box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
       }
@@ -79,7 +81,8 @@
       .pig-floating-button.is-expand-left:hover,
       .pig-floating-button.is-expand-left:focus-within,
       .pig-floating-button.is-expand-left.is-thinking,
-      .pig-floating-button.is-expand-left.is-chat-holding {
+      .pig-floating-button.is-expand-left.is-chat-holding,
+      .pig-floating-button.is-expand-left.is-input-image-dragging {
         left: var(--pig-expand-offset);
       }
 
@@ -832,6 +835,21 @@
           0 0 0 2px rgba(96, 165, 250, 0.16) !important;
       }
 
+      #${rootId} .pig-floating-button.is-input-image-dragging .pig-hover-input-shell {
+        border-color: rgba(147, 197, 253, 0.5) !important;
+        box-shadow:
+          inset 0 0 0 1px rgba(147, 197, 253, 0.32),
+          0 0 0 2px rgba(147, 197, 253, 0.14) !important;
+      }
+
+      #${rootId} .pig-floating-button.is-input-image-drop-target .pig-hover-input-shell {
+        border-color: var(--pig-drop-primary) !important;
+        box-shadow:
+          inset 0 0 0 1px rgba(147, 197, 253, 0.68),
+          0 0 0 2px rgba(147, 197, 253, 0.28),
+          0 0 16px rgba(147, 197, 253, 0.18) !important;
+      }
+
       #${rootId} .pig-input-image-button,
       #${rootId} .pig-input-image-remove {
         all: unset !important;
@@ -951,7 +969,8 @@
 
       #${rootId} .pig-floating-button:hover .pig-hover-input-shell,
       #${rootId} .pig-floating-button:focus-within .pig-hover-input-shell,
-      #${rootId} .pig-floating-button.is-chat-holding .pig-hover-input-shell {
+      #${rootId} .pig-floating-button.is-chat-holding .pig-hover-input-shell,
+      #${rootId} .pig-floating-button.is-input-image-dragging .pig-hover-input-shell {
         width: 100% !important;
         flex: 1 1 auto !important;
         padding: 0 10px !important;
@@ -961,14 +980,16 @@
 
       #${rootId} .pig-floating-button.supports-input-image:hover .pig-hover-input-shell,
       #${rootId} .pig-floating-button.supports-input-image:focus-within .pig-hover-input-shell,
-      #${rootId} .pig-floating-button.supports-input-image.is-chat-holding .pig-hover-input-shell {
+      #${rootId} .pig-floating-button.supports-input-image.is-chat-holding .pig-hover-input-shell,
+      #${rootId} .pig-floating-button.supports-input-image.is-input-image-dragging .pig-hover-input-shell {
         width: 100% !important;
         padding: 0 8px !important;
       }
 
       #${rootId} .pig-floating-button.supports-input-image:hover .pig-input-image-button,
       #${rootId} .pig-floating-button.supports-input-image:focus-within .pig-input-image-button,
-      #${rootId} .pig-floating-button.supports-input-image.is-chat-holding .pig-input-image-button {
+      #${rootId} .pig-floating-button.supports-input-image.is-chat-holding .pig-input-image-button,
+      #${rootId} .pig-floating-button.supports-input-image.is-input-image-dragging .pig-input-image-button {
         width: 24px !important;
         opacity: 1 !important;
         pointer-events: auto !important;

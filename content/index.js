@@ -25,6 +25,8 @@
   const INPUT_IMAGE_COMPRESS_QUALITY = CONTENT_CONFIG.inputImageCompressQuality || 0.82;
   const INPUT_IMAGE_DATA_URL_MAX_LENGTH = CONTENT_CONFIG.inputImageDataUrlMaxLength || 1200000;
   const INPUT_IMAGES_TOTAL_DATA_URL_MAX_LENGTH = CONTENT_CONFIG.inputImagesTotalDataUrlMaxLength || 3600000;
+  const INPUT_IMAGE_DRAG_RESET_MS = 900;
+  const IMAGE_FILE_EXTENSION_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i;
   const DATA_IMAGE_MARKDOWN_RE = /!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/;
   const DATA_IMAGE_MARKDOWN_PREFIX_RE = /!\[[^\]\n\r]*]\(data:image\//;
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
@@ -78,6 +80,13 @@
 	      startTop: 0
 	    },
 	    hoverMessages: [],
+    inputImageDrag: {
+      active: false,
+      overDropTarget: false,
+      resetTimer: 0,
+      imageUrl: "",
+      restoreChatHoldExpanded: false
+    },
 	    hoverUserScrolled: false,
 	    hoverScrollToBottomRequested: false,
 	    hoverScrollDrag: {
@@ -483,7 +492,8 @@
 	    elements.button.classList.toggle("is-chat-holding", state.chatHoldExpanded);
 	    elements.button.classList.toggle("supports-input-image", state.llmConfig.imageInputSupported === true);
 	    elements.button.classList.toggle("has-input-image", state.llmConfig.imageInputSupported === true && state.inputImages.length > 0);
-    if (!elements.hoverMessages.hidden) {
+    renderInputImageDragState();
+	    if (!elements.hoverMessages.hidden) {
       updateHoverMessagesBounds();
     }
     petController.sync({
@@ -1698,6 +1708,43 @@
     });
   }
 
+  function dataUrlToBlob(dataUrl) {
+    const match = String(dataUrl || "").match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+    if (!match) {
+      throw new Error(t("chat.imageReadFailed"));
+    }
+    const mimeType = match[1] || "application/octet-stream";
+    const isBase64 = Boolean(match[2]);
+    const body = isBase64 ? atob(match[3] || "") : decodeURIComponent(match[3] || "");
+    const bytes = new Uint8Array(body.length);
+    for (let index = 0; index < body.length; index += 1) {
+      bytes[index] = body.charCodeAt(index);
+    }
+    return new Blob([bytes], { type: mimeType });
+  }
+
+  function createNamedImageFile(blob, name) {
+    const fileName = String(name || t("image.alt")).trim() || t("image.alt");
+    try {
+      return new File([blob], fileName, { type: blob.type || "image/jpeg" });
+    } catch {
+      blob.name = fileName;
+      return blob;
+    }
+  }
+
+  function getImageFileNameFromUrl(url, mimeType = "") {
+    try {
+      const pathname = new URL(url).pathname;
+      const name = decodeURIComponent(pathname.split("/").filter(Boolean).pop() || "");
+      if (name) {
+        return name.slice(0, 160);
+      }
+    } catch {}
+    const extension = String(mimeType || "").split("/")[1] || "jpg";
+    return `image.${extension.replace(/[^a-z0-9.+-]/gi, "") || "jpg"}`;
+  }
+
   function getImageDataUrlTotalLength(images) {
     return normalizeInputImages(images).reduce((total, image) => total + String(image.dataUrl || "").length, 0);
   }
@@ -1794,10 +1841,10 @@
     }
   }
 
-  function renderInputImageState() {
-    if (!elements?.button) {
-      return;
-    }
+	  function renderInputImageState() {
+	    if (!elements?.button) {
+	      return;
+	    }
 
     const supportsImageInput = state.llmConfig.imageInputSupported === true;
     if (!supportsImageInput && state.inputImages.length) {
@@ -1819,9 +1866,210 @@
       elements.inputImageChip.title = images.map(getImageAltText).join(", ");
       elements.inputImageChip.setAttribute("aria-label", images.length ? t("chat.imagesSelected", { count: images.length }) : "");
     }
-    if (elements.inputImageFile) {
-      elements.inputImageFile.value = "";
+	    if (elements.inputImageFile) {
+	      elements.inputImageFile.value = "";
+	    }
+    renderInputImageDragState();
+	  }
+
+  function isImageFile(file) {
+    return Boolean(file && (/^image\//i.test(file.type || "") || IMAGE_FILE_EXTENSION_RE.test(file.name || "")));
+  }
+
+  function getImageFilesFromDataTransfer(dataTransfer) {
+    if (!dataTransfer) {
+      return [];
     }
+
+    const files = [];
+    const seen = new Set();
+    const appendFile = (file) => {
+      if (!isImageFile(file)) {
+        return;
+      }
+      const key = `${file.name || ""}:${file.size || 0}:${file.lastModified || 0}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      files.push(file);
+    };
+
+    Array.from(dataTransfer.items || []).forEach((item) => {
+      if (item?.kind !== "file") {
+        return;
+      }
+      try {
+        appendFile(item.getAsFile?.());
+      } catch {}
+    });
+
+    Array.from(dataTransfer.files || []).forEach(appendFile);
+    return files;
+  }
+
+  function getImageUrlFromDataTransfer(dataTransfer) {
+    if (!dataTransfer?.getData) {
+      return "";
+    }
+
+    const customUrl = String(dataTransfer.getData("application/x-dogeclaw-image-url") || "").trim();
+    if (customUrl) {
+      return customUrl;
+    }
+
+    const uriList = String(dataTransfer.getData("text/uri-list") || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith("#"));
+    if (uriList) {
+      return uriList;
+    }
+
+    const html = String(dataTransfer.getData("text/html") || "");
+    const htmlUrl = html.match(/<img\b[^>]*\bsrc=["']([^"']+)/i)?.[1] || "";
+    if (htmlUrl) {
+      return htmlUrl;
+    }
+
+    const text = String(dataTransfer.getData("text/plain") || "").trim();
+    return /^(https?:|data:image\/|blob:)/i.test(text) ? text : "";
+  }
+
+  function hasImageDragData(dataTransfer) {
+    if (!dataTransfer) {
+      return false;
+    }
+
+    const items = Array.from(dataTransfer.items || []);
+    if (items.some((item) => item?.kind === "file" && (!item.type || /^image\//i.test(item.type || "")))) {
+      return true;
+    }
+
+    const types = Array.from(dataTransfer.types || []).map((type) => String(type).toLowerCase());
+    return types.includes("files") || Array.from(dataTransfer.files || []).some(isImageFile);
+  }
+
+  function isImageUploadAvailable() {
+    return Boolean(state.floatingEnabled && state.llmConfig.imageInputSupported === true && elements?.button);
+  }
+
+  function isInputImageDropTarget(target) {
+    return Boolean(target && elements?.buttonInputShell?.contains?.(target));
+  }
+
+  function getDraggedPageImageUrl(target) {
+    const element = target?.nodeType === Node.ELEMENT_NODE ? target : target?.parentElement;
+    const image = element?.closest?.("img, picture source, a[href]");
+    if (!image) {
+      return "";
+    }
+
+    const isImageElement = image.matches?.("img, picture source");
+    const rawUrl =
+      image.currentSrc ||
+      image.src ||
+      image.srcset?.split?.(",")?.[0]?.trim?.().split(/\s+/)[0] ||
+      image.href ||
+      "";
+    const url = String(rawUrl || "").trim();
+    return url && (isImageElement || /^data:image\//i.test(url) || IMAGE_FILE_EXTENSION_RE.test(url.split(/[?#]/)[0] || "")) ? url : "";
+  }
+
+  async function imageUrlToFile(url) {
+    const imageUrl = String(url || "").trim();
+    if (!imageUrl) {
+      throw new Error(t("chat.imageReadFailed"));
+    }
+
+    if (/^data:image\//i.test(imageUrl)) {
+      const blob = dataUrlToBlob(imageUrl);
+      return createNamedImageFile(blob, getImageFileNameFromUrl("image", blob.type));
+    }
+
+    if (/^blob:/i.test(imageUrl)) {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      if (!/^image\//i.test(blob.type || "")) {
+        throw new Error(t("chat.imageInvalid"));
+      }
+      return createNamedImageFile(blob, getImageFileNameFromUrl(imageUrl, blob.type));
+    }
+
+    const response = await safeSendRuntimeMessage({ type: "fetchImageAsDataUrl", url: imageUrl });
+    if (!response?.ok || !response.result?.dataUrl) {
+      throw new Error(response?.error || t("chat.imageReadFailed"));
+    }
+
+    const blob = dataUrlToBlob(response.result.dataUrl);
+    return createNamedImageFile(blob, response.result.fileName || getImageFileNameFromUrl(imageUrl, response.result.mimeType || blob.type));
+  }
+
+  function renderInputImageDragState() {
+    if (!elements?.button) {
+      return;
+    }
+
+    const active = state.inputImageDrag.active && isImageUploadAvailable();
+    const overDropTarget = active && state.inputImageDrag.overDropTarget;
+    elements.button.classList.toggle("is-input-image-dragging", active);
+    elements.button.classList.toggle("is-input-image-drop-target", overDropTarget);
+    if (elements.buttonHoverInput) {
+      elements.buttonHoverInput.placeholder = active
+        ? t(overDropTarget ? "chat.dropImageReadyPlaceholder" : "chat.dropImagePlaceholder")
+        : t("chat.inputPlaceholder");
+    }
+  }
+
+  function scheduleInputImageDragReset() {
+    if (state.inputImageDrag.resetTimer) {
+      window.clearTimeout(state.inputImageDrag.resetTimer);
+    }
+    state.inputImageDrag.resetTimer = window.setTimeout(() => {
+      state.inputImageDrag.resetTimer = 0;
+      setInputImageDragState(false);
+    }, INPUT_IMAGE_DRAG_RESET_MS);
+  }
+
+  function setInputImageDragState(active, options = {}) {
+    const nextActive = Boolean(active && isImageUploadAvailable());
+    const nextOverDropTarget = Boolean(nextActive && options.overDropTarget);
+    const changed =
+      state.inputImageDrag.active !== nextActive ||
+      state.inputImageDrag.overDropTarget !== nextOverDropTarget;
+
+    if (nextActive && !state.inputImageDrag.active) {
+      state.inputImageDrag.restoreChatHoldExpanded = state.chatHoldExpanded;
+      state.chatHoldExpanded = true;
+      updateButtonExpansionSide();
+    }
+
+    if (!nextActive && state.inputImageDrag.active) {
+      state.chatHoldExpanded = state.inputImageDrag.restoreChatHoldExpanded;
+      state.inputImageDrag.restoreChatHoldExpanded = false;
+      state.inputImageDrag.overDropTarget = false;
+      state.inputImageDrag.imageUrl = "";
+      if (state.inputImageDrag.resetTimer) {
+        window.clearTimeout(state.inputImageDrag.resetTimer);
+        state.inputImageDrag.resetTimer = 0;
+      }
+    }
+
+    state.inputImageDrag.active = nextActive;
+    state.inputImageDrag.overDropTarget = nextOverDropTarget;
+    if (nextActive && options.imageUrl) {
+      state.inputImageDrag.imageUrl = String(options.imageUrl || "").trim();
+    }
+    renderInputImageDragState();
+    if (changed) {
+      scheduleSync();
+    }
+  }
+
+  function isLeavingViewport(event) {
+    const x = Number(event?.clientX);
+    const y = Number(event?.clientY);
+    return Number.isFinite(x) && Number.isFinite(y) && (x <= 0 || y <= 0 || x >= window.innerWidth || y >= window.innerHeight);
   }
 
   function clearInputImages() {
@@ -1848,11 +2096,11 @@
     });
   }
 
-  async function handleInputImageChange(event) {
-    const files = Array.from(event.currentTarget?.files || []);
-    if (!files.length) {
-      return;
-    }
+	  async function addInputImageFiles(files) {
+	    files = Array.from(files || []);
+	    if (!files.length) {
+	      return;
+	    }
 
     if (state.llmConfig.imageInputSupported !== true) {
       state.inputImages = [];
@@ -1910,9 +2158,122 @@
     state.inputImages = existingImages.concat(nextImages).slice(0, INPUT_IMAGE_MAX_COUNT);
     state.chatVisible = true;
     state.chatHoldExpanded = true;
-    renderInputImageState();
-    scheduleSync();
-    window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
+	    renderInputImageState();
+	    scheduleSync();
+	    window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
+	  }
+
+  async function addInputImageUrls(urls) {
+    const files = [];
+    for (const url of Array.from(urls || [])) {
+      try {
+        files.push(await imageUrlToFile(url));
+      } catch (error) {
+        showTransientTip("dogeclaw-image-read-failed-tip", t("chat.imageReadFailed", { error: error?.message || String(error) }));
+      }
+    }
+    if (files.length) {
+      await addInputImageFiles(files);
+    } else {
+      renderInputImageState();
+    }
+  }
+
+  async function handleInputImageChange(event) {
+    await addInputImageFiles(Array.from(event.currentTarget?.files || []));
+  }
+
+  function handleDocumentImageDragEnter(event) {
+    if (!isImageUploadAvailable() && !state.inputImageDrag.active) {
+      return;
+    }
+
+    if (!state.inputImageDrag.active && !hasImageDragData(event.dataTransfer) && !getDraggedPageImageUrl(event.target)) {
+      return;
+    }
+
+    setInputImageDragState(true, {
+      overDropTarget: isInputImageDropTarget(event.target)
+    });
+    scheduleInputImageDragReset();
+  }
+
+  function handleDocumentImageDragOver(event) {
+    if (!isImageUploadAvailable() && !state.inputImageDrag.active) {
+      return;
+    }
+
+    if (!state.inputImageDrag.active && !hasImageDragData(event.dataTransfer) && !getDraggedPageImageUrl(event.target)) {
+      return;
+    }
+
+    const overDropTarget = isInputImageDropTarget(event.target);
+    setInputImageDragState(true, { overDropTarget });
+    scheduleInputImageDragReset();
+    if (overDropTarget) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    }
+  }
+
+  function handleDocumentImageDragLeave(event) {
+    if (!state.inputImageDrag.active) {
+      return;
+    }
+
+    if (isLeavingViewport(event)) {
+      setInputImageDragState(false);
+    }
+  }
+
+  async function handleDocumentImageDrop(event) {
+    if (!state.inputImageDrag.active && !hasImageDragData(event.dataTransfer) && !getDraggedPageImageUrl(event.target)) {
+      return;
+    }
+
+    const overDropTarget = isInputImageDropTarget(event.target);
+    const files = getImageFilesFromDataTransfer(event.dataTransfer);
+    const imageUrl =
+      state.inputImageDrag.imageUrl ||
+      getImageUrlFromDataTransfer(event.dataTransfer) ||
+      getDraggedPageImageUrl(event.target);
+    if (overDropTarget && isImageUploadAvailable()) {
+      event.preventDefault();
+      event.stopPropagation();
+      setInputImageDragState(false);
+      state.chatHoldExpanded = true;
+      scheduleSync();
+      if (files.length) {
+        await addInputImageFiles(files);
+      } else if (imageUrl) {
+        await addInputImageUrls([imageUrl]);
+      } else {
+        showTransientTip("dogeclaw-image-drop-invalid-tip", t("chat.imageInvalid"));
+      }
+      return;
+    }
+
+    setInputImageDragState(false);
+  }
+
+  function handleDocumentImageDragStart(event) {
+    const imageUrl = getDraggedPageImageUrl(event.target);
+    if (!isImageUploadAvailable() || !imageUrl) {
+      return;
+    }
+
+    try {
+      event.dataTransfer?.setData?.("application/x-dogeclaw-image-url", imageUrl);
+    } catch {}
+
+    setInputImageDragState(true, {
+      overDropTarget: isInputImageDropTarget(event.target),
+      imageUrl
+    });
+    scheduleInputImageDragReset();
   }
 
 	  async function sendTextToDogeclaw(text, images = []) {
@@ -2367,7 +2728,7 @@
       }
       inputImageFile.click();
     });
-    inputImageFile.addEventListener("change", handleInputImageChange);
+	    inputImageFile.addEventListener("change", handleInputImageChange);
     inputImageRemove.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -2375,12 +2736,19 @@
       window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
 	    });
 	    buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
-    window.addEventListener("resize", handleWindowResize);
+    document.addEventListener("dragenter", handleDocumentImageDragEnter, true);
+    document.addEventListener("dragstart", handleDocumentImageDragStart, true);
+    document.addEventListener("dragover", handleDocumentImageDragOver, true);
+    document.addEventListener("dragleave", handleDocumentImageDragLeave, true);
+    document.addEventListener("drop", handleDocumentImageDrop, true);
+    document.addEventListener("dragend", () => setInputImageDragState(false), true);
+	    window.addEventListener("resize", handleWindowResize);
 
     return {
       root,
 	      button,
 	      buttonLabel: null,
+      buttonInputShell,
 	      buttonHoverInput,
       inputImageButton,
       inputImageFile,
