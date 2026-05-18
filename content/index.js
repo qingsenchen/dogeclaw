@@ -18,6 +18,8 @@
   const DRAG_START_THRESHOLD = 4;
   const LLM_CONFIG_TIP_ID = "dogeclaw-llm-config-tip";
   const TAB_HISTORY_SAVE_DELAY_MS = 80;
+  const DATA_IMAGE_MARKDOWN_RE = /^!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)$/;
+  const DATA_IMAGE_MARKDOWN_PREFIX_RE = /^!\[[^\]\n\r]*]\(data:image\//;
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const injectContentStyles = () => {
     if (!globalThis.DogeclawContentStyles?.injectStyles) {
@@ -125,6 +127,14 @@
     }
   }
 
+  function consumeRuntimeLastError() {
+    try {
+      return globalThis.chrome?.runtime?.lastError?.message || PLATFORM.api?.runtime?.lastError?.message || "";
+    } catch {
+      return "";
+    }
+  }
+
   async function safeSendRuntimeMessage(payload) {
     if (!isRuntimeContextValid()) {
       return null;
@@ -169,6 +179,9 @@
         const text = String(message?.text || "").trim();
         const id = String(message?.id || "").trim();
         if (!text || !id) {
+          return null;
+        }
+        if (DATA_IMAGE_MARKDOWN_PREFIX_RE.test(text) && !DATA_IMAGE_MARKDOWN_RE.test(text)) {
           return null;
         }
         return {
@@ -1487,6 +1500,7 @@
         }
       });
       port.onDisconnect.addListener(() => {
+        consumeRuntimeLastError();
         if (!settled && !state.navigationInProgress) {
           finish();
         }

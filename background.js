@@ -6,6 +6,7 @@ const CONTENT_CONFIG = APP_CONFIG.content || {};
 const BACKGROUND_CONFIG = APP_CONFIG.background || {};
 const CHANNEL_CONFIG = APP_CONFIG.channel || {};
 const WECHAT_CONFIG = APP_CONFIG.wechat || {};
+const BROWSER_CONFIG = APP_CONFIG.browser || {};
 const FLOATING_BUTTON_STATE_KEY_PREFIX = STORAGE_CONFIG.floatingButtonStateKeyPrefix || "dogeclaw-floating-enabled:";
 const SEND_SELECTION_MENU_ID = BACKGROUND_CONFIG.sendSelectionMenuId || "dogeclaw-send-selection";
 const CHANNEL_POLL_ALARM = BACKGROUND_CONFIG.channelPollAlarm || "dogeclaw-channel-poll";
@@ -31,6 +32,10 @@ const CHANNEL_LOGIN_POLL_DURATION_MS = CHANNEL_CONFIG.loginPollDurationMs || 300
 const CHANNEL_LOGIN_POLL_INITIAL_DELAY_MS = CHANNEL_CONFIG.loginPollInitialDelayMs || 1200;
 const CHANNEL_LOGIN_POLL_INTERVAL_MS = CHANNEL_CONFIG.loginPollIntervalMs || 2500;
 const CHANNEL_MIN_LONG_POLL_TIMEOUT_MS = CHANNEL_CONFIG.minLongPollTimeoutMs || 5000;
+const TAB_CONVERSATION_MESSAGE_TEXT_LIMIT = STORAGE_CONFIG.tabConversationMessageTextLimit || 16000;
+const TAB_CONVERSATION_IMAGE_DATA_URL_LIMIT =
+  STORAGE_CONFIG.tabConversationImageDataUrlLimit || BROWSER_CONFIG.screenshotDataUrlLimit || 1200000;
+const DATA_IMAGE_MARKDOWN_RE = /^!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)$/;
 const WECHAT_DEFAULT_LONG_POLL_TIMEOUT_MS = WECHAT_CONFIG.defaultLongPollTimeoutMs || 35000;
 const WECHAT_MAX_LONG_POLL_TIMEOUT_MS = WECHAT_CONFIG.maxLongPollTimeoutMs || 35000;
 const WECHAT_CONFIG_CACHE_TTL_MS = WECHAT_CONFIG.configCacheTtlMs || 24 * 60 * 60 * 1000;
@@ -72,6 +77,22 @@ function getSenderTabId(sender) {
   return Number.isInteger(tabId) && tabId > 0 ? tabId : 0;
 }
 
+function consumeRuntimeLastError() {
+  try {
+    return globalThis.chrome?.runtime?.lastError?.message || PLATFORM.api?.runtime?.lastError?.message || "";
+  } catch {
+    return "";
+  }
+}
+
+function normalizeTabConversationMessageText(message) {
+  const text = String(message?.text || "");
+  if (DATA_IMAGE_MARKDOWN_RE.test(text)) {
+    return text.length <= TAB_CONVERSATION_IMAGE_DATA_URL_LIMIT ? text : "";
+  }
+  return text.slice(0, TAB_CONVERSATION_MESSAGE_TEXT_LIMIT);
+}
+
 function normalizeTabConversation(payload = {}) {
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
   const maxMessages = CONTENT_CONFIG.maxHoverMessages || 24;
@@ -88,7 +109,7 @@ function normalizeTabConversation(payload = {}) {
       sessionId: String(message?.sessionId || ""),
       source: String(message?.source || "page"),
       side: message?.side === "left" ? "left" : "right",
-      text: String(message?.text || "").slice(0, 16000),
+      text: normalizeTabConversationMessageText(message),
       icon: message?.icon === false || message?.icon === null ? false : String(message?.icon ?? "logo").slice(0, 2048),
       action: String(message?.action || "").slice(0, 128),
       actionLabel: String(message?.actionLabel || "").slice(0, 128),
@@ -1138,6 +1159,7 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
   }
 
   port.onDisconnect.addListener(() => {
+    consumeRuntimeLastError();
     disconnected = true;
     if (!toolContext.keepRunningAfterDisconnect) {
       controller?.abort();
