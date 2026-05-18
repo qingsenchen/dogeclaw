@@ -318,6 +318,10 @@
         padding: 6px;
       }
 
+      .pig-chat-bubble:has(.pig-markdown-table-wrap) {
+        max-width: min(360px, calc(100vw - 48px));
+      }
+
       .pig-chat-bubble,
       .pig-chat-bubble p,
       .pig-chat-bubble li,
@@ -332,6 +336,7 @@
       .pig-chat-bubble ol,
       .pig-chat-bubble blockquote,
       .pig-chat-bubble hr,
+      .pig-chat-bubble .pig-markdown-table-wrap,
       .pig-chat-bubble pre {
         margin: 0;
       }
@@ -347,6 +352,12 @@
       .pig-chat-bubble hr + ol,
       .pig-chat-bubble ul + p,
       .pig-chat-bubble ol + p,
+      .pig-chat-bubble p + .pig-markdown-table-wrap,
+      .pig-chat-bubble .pig-markdown-table-wrap + p,
+      .pig-chat-bubble ul + .pig-markdown-table-wrap,
+      .pig-chat-bubble ol + .pig-markdown-table-wrap,
+      .pig-chat-bubble .pig-markdown-table-wrap + ul,
+      .pig-chat-bubble .pig-markdown-table-wrap + ol,
       .pig-chat-bubble pre + p,
       .pig-chat-bubble p + pre {
         margin-top: 6px;
@@ -388,6 +399,54 @@
         padding-left: 8px;
         border-left: 2px solid rgba(255, 255, 255, 0.28);
         color: rgba(255, 255, 255, 0.82);
+      }
+
+      .pig-markdown-table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+      }
+
+      .pig-markdown-table-wrap table {
+        width: 100%;
+        min-width: 100%;
+        border-collapse: collapse;
+        color: #ffffff;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .pig-markdown-table-wrap th,
+      .pig-markdown-table-wrap td {
+        padding: 6px 8px;
+        border-right: 1px solid rgba(255, 255, 255, 0.12);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        text-align: left;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+      }
+
+      .pig-markdown-table-wrap th {
+        background: rgba(255, 255, 255, 0.1);
+        font-weight: 700;
+      }
+
+      .pig-markdown-table-wrap tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .pig-markdown-table-wrap th:last-child,
+      .pig-markdown-table-wrap td:last-child {
+        border-right: 0;
+      }
+
+      .pig-markdown-table-wrap .is-align-center {
+        text-align: center;
+      }
+
+      .pig-markdown-table-wrap .is-align-right {
+        text-align: right;
       }
 
       .pig-chat-bubble hr {

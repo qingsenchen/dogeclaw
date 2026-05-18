@@ -62,6 +62,53 @@
     return /^(?:-\s*){3,}$/.test(line) || /^(?:\*\s*){3,}$/.test(line) || /^(?:_\s*){3,}$/.test(line);
   }
 
+  function splitTableRow(line) {
+    const trimmed = String(line || "").trim();
+    const normalized = trimmed.replace(/^\|/, "").replace(/\|$/, "");
+    if (!normalized.includes("|")) {
+      return [];
+    }
+    return normalized.split("|").map((cell) => cell.trim());
+  }
+
+  function parseTableDelimiter(line, columnCount) {
+    const cells = splitTableRow(line);
+    if (columnCount < 2 || cells.length !== columnCount) {
+      return null;
+    }
+
+    const alignments = [];
+    for (const cell of cells) {
+      const value = cell.replace(/\s+/g, "");
+      if (!/^:?-{3,}:?$/.test(value)) {
+        return null;
+      }
+      alignments.push(value.startsWith(":") && value.endsWith(":") ? "center" : value.endsWith(":") ? "right" : "left");
+    }
+    return alignments;
+  }
+
+  function renderMarkdownTable(rows, alignments) {
+    const header = rows[0] || [];
+    const bodyRows = rows.slice(1);
+    const alignClass = (alignment) =>
+      alignment === "center" ? "is-align-center" : alignment === "right" ? "is-align-right" : "";
+    const renderCells = (cells, tag) =>
+      cells
+        .map((cell, index) => {
+          const className = alignClass(alignments[index]);
+          return `<${tag}${className ? ` class="${className}"` : ""}>${renderInlineMarkdown(cell)}</${tag}>`;
+        })
+        .join("");
+
+    return [
+      '<div class="pig-markdown-table-wrap"><table>',
+      `<thead><tr>${renderCells(header, "th")}</tr></thead>`,
+      bodyRows.length ? `<tbody>${bodyRows.map((row) => `<tr>${renderCells(row, "td")}</tr>`).join("")}</tbody>` : "",
+      "</table></div>"
+    ].join("");
+  }
+
   function renderMarkdown(message) {
     const lines = String(message || "").replace(/\r\n/g, "\n").split("\n");
     const html = [];
@@ -96,7 +143,8 @@
       codeLines = [];
     }
 
-    lines.forEach((line) => {
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
       if (/^```/.test(line.trim())) {
         if (inCodeBlock) {
           flushCodeBlock();
@@ -107,39 +155,59 @@
           inCodeBlock = true;
           codeLines = [];
         }
-        return;
+        continue;
       }
 
       if (inCodeBlock) {
         codeLines.push(line);
-        return;
+        continue;
       }
 
       if (!line.trim()) {
         flushParagraph();
         flushList();
-        return;
+        continue;
+      }
+
+      const tableHeader = splitTableRow(line);
+      const tableAlignments = parseTableDelimiter(lines[index + 1] || "", tableHeader.length);
+      if (tableAlignments) {
+        const rows = [tableHeader];
+        index += 2;
+        while (index < lines.length) {
+          const row = splitTableRow(lines[index]);
+          if (!row.length) {
+            break;
+          }
+          rows.push(row.slice(0, tableHeader.length).concat(Array(Math.max(0, tableHeader.length - row.length)).fill("")));
+          index += 1;
+        }
+        index -= 1;
+        flushParagraph();
+        flushList();
+        html.push(renderMarkdownTable(rows, tableAlignments));
+        continue;
       }
 
       if (isThematicBreak(line.trim())) {
         flushParagraph();
         flushList();
         html.push("<hr>");
-        return;
+        continue;
       }
 
       const unordered = line.match(/^\s*[-*]\s+(.+)$/);
       if (unordered) {
         ensureList("ul");
         html.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
-        return;
+        continue;
       }
 
       const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
       if (ordered) {
         ensureList("ol");
         html.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
-        return;
+        continue;
       }
 
       const quote = line.match(/^\s*>\s?(.+)$/);
@@ -147,7 +215,7 @@
         flushParagraph();
         flushList();
         html.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
-        return;
+        continue;
       }
 
       const heading = line.match(/^\s{0,3}#{1,6}\s+(.+)$/);
@@ -155,12 +223,12 @@
         flushParagraph();
         flushList();
         html.push(`<p><strong>${renderInlineMarkdown(heading[1])}</strong></p>`);
-        return;
+        continue;
       }
 
       flushList();
       paragraph.push(line.trim());
-    });
+    }
 
     if (inCodeBlock) flushCodeBlock();
     flushParagraph();
