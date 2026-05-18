@@ -781,63 +781,69 @@
         white-space: nowrap;
       }
 
-      .pig-hover-input {
-        all: unset;
-        box-sizing: border-box;
-        width: 0;
-        min-width: 0;
-        height: 30px;
-        flex: 1 1 auto;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 999px;
-        padding: 0;
-	        color: #ffffff;
-	        background: rgba(24, 24, 24, 0.94);
-	        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-	        font-size: 13px;
-	        line-height: 30px;
-	        opacity: 0;
-	        outline: 0 !important;
-	        pointer-events: none;
-	        cursor: text;
-	        user-select: text;
-	        -webkit-appearance: none;
-	        appearance: none;
-	        transition: width 180ms ease, padding 180ms ease, opacity 120ms ease;
+      #${rootId} input.pig-hover-input {
+        all: unset !important;
+        box-sizing: border-box !important;
+        display: block !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        flex: 1 1 auto !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 999px !important;
+        padding: 0 !important;
+        color: #ffffff !important;
+        background: rgba(24, 24, 24, 0.94) !important;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 30px !important;
+        letter-spacing: 0 !important;
+        opacity: 0 !important;
+        outline: 0 !important;
+        pointer-events: none !important;
+        cursor: text !important;
+        user-select: text !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        transition: width 180ms ease, padding 180ms ease, opacity 120ms ease !important;
       }
 
-      .pig-hover-input:focus {
+      #${rootId} input.pig-hover-input:focus {
         outline: 0 !important;
         box-shadow:
           inset 0 0 0 1px rgba(255, 255, 255, 0.08),
           0 0 0 2px rgba(96, 165, 250, 0.16) !important;
       }
 
-      .pig-hover-input::placeholder {
-        color: rgba(255, 255, 255, 0.62);
+      #${rootId} input.pig-hover-input::placeholder {
+        color: rgba(255, 255, 255, 0.62) !important;
+        opacity: 1 !important;
       }
 
-      .pig-floating-button:hover .pig-hover-input,
-      .pig-floating-button:focus-within .pig-hover-input,
-      .pig-floating-button.is-chat-holding .pig-hover-input {
-        width: 150px;
-        padding: 0 10px;
-        opacity: 1;
-        pointer-events: auto;
+      #${rootId} .pig-floating-button:hover input.pig-hover-input,
+      #${rootId} .pig-floating-button:focus-within input.pig-hover-input,
+      #${rootId} .pig-floating-button.is-chat-holding input.pig-hover-input {
+        width: 150px !important;
+        padding: 0 10px !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
       }
 
-      .pig-floating-button.is-thinking .pig-hover-input {
-        width: 0;
-        padding: 0;
-        opacity: 0;
-        pointer-events: none;
+      #${rootId} .pig-floating-button.is-thinking input.pig-hover-input {
+        width: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
       }
 
-      .pig-floating-button.is-dragging .pig-hover-input {
-        width: 0;
-        padding: 0;
-        opacity: 0;
-        pointer-events: none;
+      #${rootId} .pig-floating-button.is-dragging input.pig-hover-input {
+        width: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
       }
 
       .pig-status-dot {
