@@ -314,7 +314,7 @@
       }
 
       .pig-chat-bubble:has(.pig-chat-image) {
-        max-width: min(320px, calc(100vw - 48px));
+        max-width: min(240px, calc(100vw - 48px));
         padding: 6px;
       }
 
@@ -463,12 +463,17 @@
 
       .pig-chat-bubble .pig-chat-image {
         display: block;
-        width: 100%;
-        max-width: 100%;
-        max-height: min(260px, 45vh);
+        width: auto;
+        max-width: min(180px, calc(100vw - 72px));
+        max-height: min(160px, 32vh);
         object-fit: contain;
         border-radius: 10px;
         background: rgba(255, 255, 255, 0.08);
+      }
+
+      .pig-chat-bubble .pig-chat-image + .pig-chat-image,
+      .pig-chat-bubble .pig-chat-image + p {
+        margin-top: 6px;
       }
 
       .pig-chat-row.is-left .pig-chat-bubble {
@@ -488,31 +493,32 @@
       }
 
       .pig-chat-row.is-tip {
-        justify-content: flex-start;
+        justify-content: center;
       }
 
-      .pig-tip-message {
-        display: grid;
-        grid-template-columns: 24px minmax(0, 1fr) auto 24px;
+      .pig-chat-row.is-tip .pig-tip-message {
+        position: relative;
+        box-sizing: border-box;
+        display: inline-flex;
         align-items: center;
-        gap: 8px;
-        width: min(320px, calc(100vw - 48px));
-        max-width: min(320px, calc(100vw - 48px));
-        padding: 8px;
-        border-color: rgba(96, 165, 250, 0.28);
-        background: rgba(18, 24, 38, 0.96);
-      }
-
-      .pig-tip-message.has-no-icon {
-        grid-template-columns: minmax(0, 1fr) auto 24px;
+        gap: 6px;
+        width: fit-content;
+        max-width: min(280px, calc(100vw - 48px));
+        padding: 5px 34px 5px 7px;
+        border-color: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        color: #ffffff;
+        background: rgba(24, 24, 24, 0.94);
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
       }
 
       .pig-tip-logo {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 24px;
-        height: 24px;
+        flex: 0 0 auto;
+        width: 22px;
+        height: 22px;
         border-radius: 8px;
         color: #ffffff;
         background: rgba(255, 255, 255, 0.1);
@@ -529,10 +535,12 @@
       }
 
       .pig-tip-body {
+        flex: 0 1 auto;
         min-width: 0;
+        max-width: min(210px, calc(100vw - 116px));
         color: rgba(255, 255, 255, 0.88);
         font-size: 12px;
-        line-height: 1.35;
+        line-height: 1.25;
       }
 
       .pig-tip-body p,
@@ -552,10 +560,11 @@
       }
 
       .pig-tip-action {
-        min-height: 28px;
+        flex: 0 0 auto;
+        min-height: 24px;
         border: 1px solid rgba(96, 165, 250, 0.5);
         border-radius: 8px;
-        padding: 5px 9px;
+        padding: 3px 8px;
         color: #ffffff;
         background: rgba(37, 99, 235, 0.76);
         font-size: 12px;
@@ -569,11 +578,15 @@
       }
 
       .pig-tip-close {
-        width: 24px;
-        height: 24px;
+        position: absolute;
+        top: 50%;
+        right: 6px;
+        width: 22px;
+        height: 22px;
         border-radius: 8px;
         color: rgba(255, 255, 255, 0.74);
         background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-50%);
       }
 
       .pig-tip-close:hover,
@@ -583,8 +596,8 @@
       }
 
       .pig-tip-close svg {
-        width: 14px;
-        height: 14px;
+        width: 13px;
+        height: 13px;
         display: block;
       }
 
@@ -758,64 +771,177 @@
       .pig-button-copy {
         display: inline-flex;
         align-items: center;
-        gap: 10px;
         flex: 1 1 auto;
         min-width: 0;
         max-width: 100%;
+        padding-right: 26px;
         overflow: visible;
       }
 
       .pig-button-status {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        z-index: 9;
         display: inline-flex;
         align-items: center;
-        justify-content: flex-end;
-        margin-left: 2px;
-        min-width: 18px;
+        justify-content: center;
         width: 18px;
+        min-width: 18px;
         max-width: 18px;
-        padding: 5px;
+        height: 18px;
+        padding: 0;
         overflow: visible;
         color: #ffffff;
         font-size: 14px;
         font-weight: 600;
+        transform: translateY(-50%);
+        pointer-events: none;
         white-space: nowrap;
+      }
+
+      #${rootId} .pig-input-image-file {
+        display: none !important;
+      }
+
+      #${rootId} .pig-hover-input-shell {
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        flex: 0 0 auto !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        height: 30px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 999px !important;
+        padding: 0 !important;
+        background: rgba(24, 24, 24, 0.94) !important;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+        opacity: 0 !important;
+        overflow: hidden !important;
+        pointer-events: none !important;
+        transition: width 180ms ease, padding 180ms ease, opacity 120ms ease !important;
+      }
+
+      #${rootId} .pig-hover-input-shell:focus-within {
+        outline: 0 !important;
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+          0 0 0 2px rgba(96, 165, 250, 0.16) !important;
+      }
+
+      #${rootId} .pig-input-image-button,
+      #${rootId} .pig-input-image-remove {
+        all: unset !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+        color: rgba(255, 255, 255, 0.82) !important;
+        cursor: pointer !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+      }
+
+      #${rootId} .pig-input-image-button {
+        width: 0 !important;
+        height: 24px !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        background: transparent !important;
+        opacity: 0 !important;
+        overflow: hidden !important;
+        pointer-events: none !important;
+        transition: width 180ms ease, opacity 120ms ease, background-color 140ms ease, color 140ms ease !important;
+      }
+
+      #${rootId} .pig-input-image-button:hover,
+      #${rootId} .pig-input-image-button:focus-visible,
+      #${rootId} .pig-input-image-remove:hover,
+      #${rootId} .pig-input-image-remove:focus-visible {
+        color: #ffffff !important;
+        background: rgba(255, 255, 255, 0.14) !important;
+      }
+
+      #${rootId} .pig-input-image-button svg,
+      #${rootId} .pig-input-image-remove svg {
+        display: block !important;
+        width: 16px !important;
+        height: 16px !important;
+      }
+
+      #${rootId} .pig-input-image-chip {
+        display: none !important;
+        align-items: center !important;
+        flex: 0 0 auto !important;
+        width: 52px !important;
+        height: 24px !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 999px !important;
+        padding: 1px 2px 1px 7px !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        overflow: hidden !important;
+      }
+
+      #${rootId} .pig-input-image-preview {
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+        width: 18px !important;
+        height: 20px !important;
+        border-radius: 999px !important;
+        color: #ffffff !important;
+        background: transparent !important;
+        font-size: 12px !important;
+        font-weight: 800 !important;
+        line-height: 20px !important;
+        text-align: center !important;
+      }
+
+      #${rootId} .pig-input-image-remove {
+        width: 20px !important;
+        height: 20px !important;
+        border-radius: 999px !important;
+        background: transparent !important;
       }
 
       #${rootId} input.pig-hover-input {
         all: unset !important;
         box-sizing: border-box !important;
         display: block !important;
-        width: 0 !important;
+        width: 100% !important;
         min-width: 0 !important;
         max-width: none !important;
-        height: 30px !important;
-        min-height: 30px !important;
-        flex: 1 1 auto !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 999px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        flex: 1 1 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
         padding: 0 !important;
         color: #ffffff !important;
-        background: rgba(24, 24, 24, 0.94) !important;
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+        background: transparent !important;
+        box-shadow: none !important;
         font-size: 13px !important;
         font-weight: 500 !important;
-        line-height: 30px !important;
+        line-height: 28px !important;
         letter-spacing: 0 !important;
-        opacity: 0 !important;
+        opacity: 1 !important;
         outline: 0 !important;
-        pointer-events: none !important;
+        pointer-events: auto !important;
         cursor: text !important;
         user-select: text !important;
         -webkit-appearance: none !important;
         appearance: none !important;
-        transition: width 180ms ease, padding 180ms ease, opacity 120ms ease !important;
       }
 
       #${rootId} input.pig-hover-input:focus {
         outline: 0 !important;
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-          0 0 0 2px rgba(96, 165, 250, 0.16) !important;
+        box-shadow: none !important;
       }
 
       #${rootId} input.pig-hover-input::placeholder {
@@ -823,25 +949,63 @@
         opacity: 1 !important;
       }
 
-      #${rootId} .pig-floating-button:hover input.pig-hover-input,
-      #${rootId} .pig-floating-button:focus-within input.pig-hover-input,
-      #${rootId} .pig-floating-button.is-chat-holding input.pig-hover-input {
-        width: 150px !important;
+      #${rootId} .pig-floating-button:hover .pig-hover-input-shell,
+      #${rootId} .pig-floating-button:focus-within .pig-hover-input-shell,
+      #${rootId} .pig-floating-button.is-chat-holding .pig-hover-input-shell {
+        width: 100% !important;
+        flex: 1 1 auto !important;
         padding: 0 10px !important;
         opacity: 1 !important;
         pointer-events: auto !important;
       }
 
-      #${rootId} .pig-floating-button.is-thinking input.pig-hover-input {
+      #${rootId} .pig-floating-button.supports-input-image:hover .pig-hover-input-shell,
+      #${rootId} .pig-floating-button.supports-input-image:focus-within .pig-hover-input-shell,
+      #${rootId} .pig-floating-button.supports-input-image.is-chat-holding .pig-hover-input-shell {
+        width: 100% !important;
+        padding: 0 8px !important;
+      }
+
+      #${rootId} .pig-floating-button.supports-input-image:hover .pig-input-image-button,
+      #${rootId} .pig-floating-button.supports-input-image:focus-within .pig-input-image-button,
+      #${rootId} .pig-floating-button.supports-input-image.is-chat-holding .pig-input-image-button {
+        width: 24px !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+      }
+
+      #${rootId} .pig-floating-button.supports-input-image.has-input-image:hover .pig-hover-input-shell,
+      #${rootId} .pig-floating-button.supports-input-image.has-input-image:focus-within .pig-hover-input-shell,
+      #${rootId} .pig-floating-button.supports-input-image.has-input-image.is-chat-holding .pig-hover-input-shell {
+        width: 100% !important;
+      }
+
+      #${rootId} .pig-floating-button.supports-input-image.has-input-image:hover .pig-input-image-chip,
+      #${rootId} .pig-floating-button.supports-input-image.has-input-image:focus-within .pig-input-image-chip,
+      #${rootId} .pig-floating-button.supports-input-image.has-input-image.is-chat-holding .pig-input-image-chip {
+        display: inline-flex !important;
+      }
+
+      #${rootId} .pig-floating-button.is-thinking .pig-hover-input-shell {
         width: 0 !important;
         padding: 0 !important;
         opacity: 0 !important;
         pointer-events: none !important;
       }
 
-      #${rootId} .pig-floating-button.is-dragging input.pig-hover-input {
+      #${rootId} .pig-floating-button.is-dragging .pig-hover-input-shell {
         width: 0 !important;
         padding: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+
+      #${rootId} .pig-floating-button.is-thinking .pig-input-image-button,
+      #${rootId} .pig-floating-button.is-thinking .pig-input-image-chip,
+      #${rootId} .pig-floating-button.is-dragging .pig-input-image-button,
+      #${rootId} .pig-floating-button.is-dragging .pig-input-image-chip {
+        display: none !important;
+        width: 0 !important;
         opacity: 0 !important;
         pointer-events: none !important;
       }

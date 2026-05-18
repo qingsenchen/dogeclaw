@@ -17,10 +17,38 @@
   const CHAT_MESSAGES_BUTTON_GAP = 10;
   const DRAG_START_THRESHOLD = 4;
   const LLM_CONFIG_TIP_ID = "dogeclaw-llm-config-tip";
+  const IMAGE_LIMIT_TIP_ID = "dogeclaw-image-limit-tip";
+  const TRANSIENT_TIP_DISMISS_MS = CONTENT_CONFIG.transientTipDismissMs || 10000;
   const TAB_HISTORY_SAVE_DELAY_MS = 80;
-  const DATA_IMAGE_MARKDOWN_RE = /^!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)$/;
-  const DATA_IMAGE_MARKDOWN_PREFIX_RE = /^!\[[^\]\n\r]*]\(data:image\//;
+  const INPUT_IMAGE_MAX_COUNT = CONTENT_CONFIG.inputImageMaxCount || 5;
+  const INPUT_IMAGE_MAX_DIMENSION = CONTENT_CONFIG.inputImageMaxDimension || 1536;
+  const INPUT_IMAGE_COMPRESS_QUALITY = CONTENT_CONFIG.inputImageCompressQuality || 0.82;
+  const INPUT_IMAGE_DATA_URL_MAX_LENGTH = CONTENT_CONFIG.inputImageDataUrlMaxLength || 1200000;
+  const INPUT_IMAGES_TOTAL_DATA_URL_MAX_LENGTH = CONTENT_CONFIG.inputImagesTotalDataUrlMaxLength || 3600000;
+  const DATA_IMAGE_MARKDOWN_RE = /!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/;
+  const DATA_IMAGE_MARKDOWN_PREFIX_RE = /!\[[^\]\n\r]*]\(data:image\//;
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
+
+  function isImageInputUnsupportedError(error) {
+    const message = String(error || "");
+    return /(image_url|image input|vision|multimodal)/i.test(message)
+      && /(unknown variant|expected text|unsupported|not support|does not support|invalid type|only text)/i.test(message);
+  }
+
+  function formatLlmErrorMessage(error, fallbackText = "") {
+    const errorText = String(error || "");
+    if (errorText.includes("API key")) {
+      return t("llm.missingKey");
+    }
+    if (isImageInputUnsupportedError(errorText)) {
+      return t("llm.imageUnsupported");
+    }
+    if (/aborted|body stream buffer|流式响应已中断/i.test(errorText)) {
+      return fallbackText || t("llm.interrupted");
+    }
+    return t("llm.failed", { error: errorText || t("llm.requestFailed") });
+  }
+
   const injectContentStyles = () => {
     if (!globalThis.DogeclawContentStyles?.injectStyles) {
       throw new Error("Dogeclaw content styles unavailable");
@@ -64,11 +92,14 @@
 	    chatHideTimer: 0,
 	    chatCollapseTimer: 0,
 	    chatHoldExpanded: false,
+	    inputImages: [],
 	    navigationInProgress: false,
 	    navigationResetTimer: 0,
 	    llmConfig: {
       checked: false,
       providerConfigured: false,
+      imageInputSupported: false,
+      imageInputStatus: "unknown",
       visible: false,
       saving: false,
       error: "",
@@ -93,6 +124,7 @@
   state.pageConversationId = getPageConversationId();
   let tabHistorySaveTimer = 0;
   let tabHistorySavePromise = Promise.resolve();
+  const hoverTipDismissTimers = new Map();
 
   function getPageConversationId() {
     try {
@@ -159,9 +191,10 @@
         type: message.type === "tip" ? "tip" : "message",
         sessionId: String(message.sessionId || ""),
         source: String(message.source || "page"),
-        side: message.side === "left" ? "left" : "right",
-        text: String(message.text || ""),
-        icon: message.icon ?? "logo",
+	        side: message.side === "left" ? "left" : "right",
+	        text: String(message.text || ""),
+	        historyText: String(message.historyText || ""),
+	        icon: message.icon ?? "logo",
         action: message.action || "",
         actionLabel: message.actionLabel || "",
         pending: Boolean(message.pending),
@@ -189,9 +222,10 @@
           type: message.type === "tip" ? "tip" : "message",
           sessionId: String(message.sessionId || state.pageConversationId),
           source: String(message.source || "page"),
-          side: message.side === "left" ? "left" : "right",
-          text,
-          icon: message.icon ?? "logo",
+	          side: message.side === "left" ? "left" : "right",
+	          text,
+	          historyText: String(message.historyText || ""),
+	          icon: message.icon ?? "logo",
           action: String(message.action || ""),
           actionLabel: String(message.actionLabel || ""),
           pending: Boolean(message.pending),
@@ -444,9 +478,11 @@
 
   function syncUI() {
     elements.button.classList.toggle("is-open", false);
-    elements.button.classList.toggle("is-dragging", state.drag.active && state.drag.moved);
-    elements.button.classList.toggle("is-thinking", state.thinkingActive);
-    elements.button.classList.toggle("is-chat-holding", state.chatHoldExpanded);
+	    elements.button.classList.toggle("is-dragging", state.drag.active && state.drag.moved);
+	    elements.button.classList.toggle("is-thinking", state.thinkingActive);
+	    elements.button.classList.toggle("is-chat-holding", state.chatHoldExpanded);
+	    elements.button.classList.toggle("supports-input-image", state.llmConfig.imageInputSupported === true);
+	    elements.button.classList.toggle("has-input-image", state.llmConfig.imageInputSupported === true && state.inputImages.length > 0);
     if (!elements.hoverMessages.hidden) {
       updateHoverMessagesBounds();
     }
@@ -765,6 +801,16 @@
     }
   }
 
+  function applyLlmCapabilities(config = {}) {
+    const capabilities = config.capabilities || {};
+    state.llmConfig.imageInputSupported = capabilities.imageInput === true;
+    state.llmConfig.imageInputStatus = capabilities.imageInputStatus || "unknown";
+    if (!state.llmConfig.imageInputSupported && state.inputImages.length) {
+      state.inputImages = [];
+    }
+    renderInputImageState();
+  }
+
   async function refreshLlmConfigStatus() {
     const response = await safeSendRuntimeMessage({ type: "getLlmConfig" });
     const config = response?.config || {};
@@ -780,6 +826,7 @@
       apiKey: "",
       model: config.model || LLM_DEFAULT_CONFIG.model || "gpt-4o-mini"
     };
+    applyLlmCapabilities(config);
     return state.llmConfig.providerConfigured;
   }
 
@@ -810,11 +857,23 @@
       return;
     }
 
-    state.llmConfig.providerConfigured = true;
+    state.llmConfig.providerConfigured = Boolean(
+      response?.userConfigured &&
+      response.config?.apiBase &&
+      response.config?.model &&
+      response.config?.apiKey === "configured"
+    );
+    applyLlmCapabilities(response.config || {});
+    if (!state.llmConfig.providerConfigured) {
+      state.llmConfig.error = t("llm.apiKeyRequired");
+      renderHoverMessages();
+      return;
+    }
+
     closeConfigPanel("llm");
     state.chatVisible = true;
     state.chatHoldExpanded = true;
-    addHoverMessage(t("llm.saved"), "left");
+    addHoverMessage(state.llmConfig.imageInputSupported ? t("llm.saved") : t("llm.savedImageUnavailable"), "left");
     renderHoverMessages();
     scheduleSync();
   }
@@ -1266,9 +1325,10 @@
       id: options.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       sessionId: options.sessionId || state.pageConversationId,
       source: options.source || "page",
-      side: side === "left" ? "left" : "right",
-      text,
-      pending: Boolean(options.pending),
+	      side: side === "left" ? "left" : "right",
+	      text,
+	      historyText: String(options.historyText || ""),
+	      pending: Boolean(options.pending),
       includeInHistory: options.includeInHistory !== false
     };
 
@@ -1293,6 +1353,12 @@
     }
 
     const id = options.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const dismissAfterMs = Math.max(0, Number(options.dismissAfterMs) || 0);
+    if (hoverTipDismissTimers.has(id)) {
+      window.clearTimeout(hoverTipDismissTimers.get(id));
+      hoverTipDismissTimers.delete(id);
+    }
+
     const existing = state.hoverMessages.find((message) => message.id === id);
     const item = {
       id,
@@ -1323,10 +1389,22 @@
     }
     renderHoverMessages();
     scheduleTabConversationPersist();
+    if (dismissAfterMs > 0) {
+      const timerId = window.setTimeout(() => {
+        hoverTipDismissTimers.delete(id);
+        removeHoverMessage(id);
+      }, dismissAfterMs);
+      hoverTipDismissTimers.set(id, timerId);
+    }
     return id;
   }
 
   function removeHoverMessage(id, options = {}) {
+    if (hoverTipDismissTimers.has(id)) {
+      window.clearTimeout(hoverTipDismissTimers.get(id));
+      hoverTipDismissTimers.delete(id);
+    }
+
     const index = state.hoverMessages.findIndex((message) => message.id === id);
     if (index < 0) {
       return false;
@@ -1413,14 +1491,82 @@
       .filter((message) => !message.pending && message.source !== "channel" && message.includeInHistory !== false)
       .map((message) => ({
         role: message.side === "left" ? "assistant" : "user",
-        content: message.text
+        content: message.historyText || message.text
       }))
       .slice(-8);
   }
 
+  function getImageAltText(image) {
+    return String(image?.name || t("image.alt")).replace(/[\]\n\r]/g, " ").trim() || t("image.alt");
+  }
+
+  function normalizeInputImages(images) {
+    return Array.isArray(images)
+      ? images.filter((image) => image?.dataUrl && String(image.dataUrl).startsWith("data:image/"))
+      : [];
+  }
+
+  function buildImageDisplayMessage(text, images = []) {
+    const body = String(text || "").trim();
+    const imageMarkdown = normalizeInputImages(images)
+      .map((image) => `![${getImageAltText(image)}](${image.dataUrl})`)
+      .join("\n\n");
+    return [imageMarkdown, body].filter(Boolean).join("\n\n");
+  }
+
+  function buildImageHistoryText(text, images = []) {
+    const body = String(text || "").trim();
+    const selectedImages = normalizeInputImages(images);
+    if (!selectedImages.length) {
+      return body;
+    }
+    const imageHint = selectedImages.length === 1
+      ? t("chat.imageHistory", { name: getImageAltText(selectedImages[0]) })
+      : t("chat.imagesHistory", {
+          count: selectedImages.length,
+          names: selectedImages.map(getImageAltText).join(", ")
+        });
+    return [body, imageHint].filter(Boolean).join("\n\n");
+  }
+
+  function buildUserRequestContent(text, images = []) {
+    const body = String(text || "").trim();
+    const selectedImages = normalizeInputImages(images);
+    if (!selectedImages.length) {
+      return body;
+    }
+
+    return [
+      {
+        type: "text",
+        text: body || (selectedImages.length === 1 ? t("chat.imageOnlyPrompt") : t("chat.imagesOnlyPrompt", { count: selectedImages.length }))
+      },
+      ...selectedImages.map((image) => ({
+        type: "image_url",
+        image_url: {
+          url: image.dataUrl
+        }
+      }))
+    ];
+  }
+
+  function hasRequestContent(content) {
+    if (Array.isArray(content)) {
+      return content.some((part) => {
+        if (part?.type === "text") {
+          return Boolean(String(part.text || "").trim());
+        }
+        if (part?.type === "image_url") {
+          return Boolean(String(part.image_url?.url || "").trim());
+        }
+        return false;
+      });
+    }
+    return Boolean(String(content || "").trim());
+  }
+
   async function requestPetReply(message, history) {
-    const text = String(message || "").trim();
-    if (!text) {
+    if (!hasRequestContent(message)) {
       return;
     }
 
@@ -1486,17 +1632,7 @@
           settled = true;
           window.clearTimeout(timeoutId);
           setThinkingStatus("");
-          const errorText = payload.error || "";
-          const needsConfig = errorText.includes("API key");
-          const interrupted = /aborted|body stream buffer|流式响应已中断/i.test(errorText);
-          updateHoverMessage(
-            replyId,
-            needsConfig
-              ? t("llm.missingKey")
-              : interrupted
-                ? fullText || t("llm.interrupted")
-                : t("llm.failed", { error: errorText || t("llm.requestFailed") })
-          );
+          updateHoverMessage(replyId, formatLlmErrorMessage(payload.error, fullText));
         }
       });
       port.onDisconnect.addListener(() => {
@@ -1507,7 +1643,7 @@
       });
       port.postMessage({
         type: "start",
-        message: text,
+        message,
         history,
         requestId,
         replyId
@@ -1516,7 +1652,7 @@
       settled = true;
       window.clearTimeout(timeoutId);
       setThinkingStatus("");
-      updateHoverMessage(replyId, t("llm.failed", { error: error?.message || String(error) }));
+      updateHoverMessage(replyId, formatLlmErrorMessage(error?.message || String(error)));
     }
   }
 
@@ -1542,18 +1678,263 @@
     return true;
   }
 
-  async function sendTextToDogeclaw(text) {
-    const value = String(text || "").trim();
-    if (!value) {
-      return false;
+  function formatBytes(bytes) {
+    const value = Number(bytes) || 0;
+    if (value >= 1024 * 1024) {
+      return `${(value / 1024 / 1024).toFixed(1)} MB`;
+    }
+    if (value >= 1024) {
+      return `${Math.ceil(value / 1024)} KB`;
+    }
+    return `${value} B`;
+  }
+
+  function readBlobAsDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+      reader.addEventListener("error", () => reject(reader.error || new Error(t("chat.imageReadFailed"))), { once: true });
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function getImageDataUrlTotalLength(images) {
+    return normalizeInputImages(images).reduce((total, image) => total + String(image.dataUrl || "").length, 0);
+  }
+
+  function getCompressedImageSize(width, height) {
+    const sourceWidth = Math.max(1, Number(width) || 1);
+    const sourceHeight = Math.max(1, Number(height) || 1);
+    const scale = Math.min(1, INPUT_IMAGE_MAX_DIMENSION / Math.max(sourceWidth, sourceHeight));
+    return {
+      width: Math.max(1, Math.round(sourceWidth * scale)),
+      height: Math.max(1, Math.round(sourceHeight * scale))
+    };
+  }
+
+  function canvasToBlob(canvas, options) {
+    if (canvas?.convertToBlob) {
+      return canvas.convertToBlob(options);
     }
 
-    syncPageConversationId();
-    const history = getLlmHistory();
-    addHoverMessage(value, "right", { sessionId: state.pageConversationId, source: "page" });
-    await requestPetReply(value, history);
-    return true;
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error(t("chat.imageReadFailed")));
+        }
+      }, options.type, options.quality);
+    });
   }
+
+  async function loadImageSource(file) {
+    if (window.createImageBitmap) {
+      const bitmap = await window.createImageBitmap(file);
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        cleanup: () => bitmap.close?.()
+      };
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const element = new Image();
+        element.addEventListener("load", () => resolve(element), { once: true });
+        element.addEventListener("error", () => reject(new Error(t("chat.imageReadFailed"))), { once: true });
+        element.src = objectUrl;
+      });
+      return {
+        source: image,
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height,
+        cleanup: () => URL.revokeObjectURL(objectUrl)
+      };
+    } catch (error) {
+      URL.revokeObjectURL(objectUrl);
+      throw error;
+    }
+  }
+
+  async function compressImageFile(file) {
+      const loaded = await loadImageSource(file);
+    try {
+      const size = getCompressedImageSize(loaded.width, loaded.height);
+      const canvas = window.OffscreenCanvas
+        ? new window.OffscreenCanvas(size.width, size.height)
+        : Object.assign(document.createElement("canvas"), size);
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error(t("chat.imageReadFailed"));
+      }
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, size.width, size.height);
+      context.drawImage(loaded.source, 0, 0, size.width, size.height);
+
+      const blob = await canvasToBlob(canvas, {
+        type: "image/jpeg",
+        quality: INPUT_IMAGE_COMPRESS_QUALITY
+      });
+      const dataUrl = await readBlobAsDataUrl(blob);
+      return {
+        dataUrl,
+        name: file.name || t("image.alt"),
+        mimeType: blob.type || "image/jpeg",
+        size: blob.size || dataUrl.length,
+        originalSize: file.size || 0,
+        width: size.width,
+        height: size.height
+      };
+    } finally {
+      loaded.cleanup?.();
+    }
+  }
+
+  function renderInputImageState() {
+    if (!elements?.button) {
+      return;
+    }
+
+    const supportsImageInput = state.llmConfig.imageInputSupported === true;
+    if (!supportsImageInput && state.inputImages.length) {
+      state.inputImages = [];
+    }
+
+    const images = supportsImageInput ? normalizeInputImages(state.inputImages).slice(0, INPUT_IMAGE_MAX_COUNT) : [];
+    if (images.length !== state.inputImages.length) {
+      state.inputImages = images;
+    }
+
+    elements.button.classList.toggle("supports-input-image", supportsImageInput);
+    elements.button.classList.toggle("has-input-image", images.length > 0);
+    if (elements.inputImagePreview) {
+      elements.inputImagePreview.textContent = images.length ? String(images.length) : "";
+      elements.inputImagePreview.title = images.length ? t("chat.imagesSelected", { count: images.length }) : "";
+    }
+    if (elements.inputImageChip) {
+      elements.inputImageChip.title = images.map(getImageAltText).join(", ");
+      elements.inputImageChip.setAttribute("aria-label", images.length ? t("chat.imagesSelected", { count: images.length }) : "");
+    }
+    if (elements.inputImageFile) {
+      elements.inputImageFile.value = "";
+    }
+  }
+
+  function clearInputImages() {
+    state.inputImages = [];
+    renderInputImageState();
+    scheduleSync();
+  }
+
+  function showImageLimitTip() {
+    addHoverTip({
+      id: IMAGE_LIMIT_TIP_ID,
+      text: t("chat.imageLimit", { count: INPUT_IMAGE_MAX_COUNT }),
+      icon: false,
+      dismissAfterMs: TRANSIENT_TIP_DISMISS_MS
+    });
+  }
+
+  function showTransientTip(id, text) {
+    addHoverTip({
+      id,
+      text,
+      icon: false,
+      dismissAfterMs: TRANSIENT_TIP_DISMISS_MS
+    });
+  }
+
+  async function handleInputImageChange(event) {
+    const files = Array.from(event.currentTarget?.files || []);
+    if (!files.length) {
+      return;
+    }
+
+    if (state.llmConfig.imageInputSupported !== true) {
+      state.inputImages = [];
+      addHoverMessage(t("llm.imageUnsupported"), "left", { includeInHistory: false });
+      renderInputImageState();
+      return;
+    }
+
+    const existingImages = normalizeInputImages(state.inputImages);
+    const availableCount = Math.max(0, INPUT_IMAGE_MAX_COUNT - existingImages.length);
+    if (!availableCount) {
+      showImageLimitTip();
+      renderInputImageState();
+      return;
+    }
+
+    const selectedFiles = files.slice(0, availableCount);
+    if (files.length > availableCount) {
+      showImageLimitTip();
+    }
+
+    const nextImages = [];
+    let totalDataUrlLength = getImageDataUrlTotalLength(existingImages);
+    for (const file of selectedFiles) {
+      if (!/^image\//i.test(file.type || "")) {
+        addHoverMessage(t("chat.imageInvalid"), "left", { includeInHistory: false });
+        continue;
+      }
+
+      try {
+        const image = await compressImageFile(file);
+        if (!image.dataUrl.startsWith("data:image/")) {
+          throw new Error(t("chat.imageInvalid"));
+        }
+        if (image.dataUrl.length > INPUT_IMAGE_DATA_URL_MAX_LENGTH) {
+          addHoverMessage(t("chat.imageCompressedTooLarge", { size: formatBytes(INPUT_IMAGE_DATA_URL_MAX_LENGTH) }), "left", { includeInHistory: false });
+          continue;
+        }
+        if (totalDataUrlLength + image.dataUrl.length > INPUT_IMAGES_TOTAL_DATA_URL_MAX_LENGTH) {
+          addHoverMessage(t("chat.imagesTotalTooLarge", { size: formatBytes(INPUT_IMAGES_TOTAL_DATA_URL_MAX_LENGTH) }), "left", { includeInHistory: false });
+          continue;
+        }
+        totalDataUrlLength += image.dataUrl.length;
+        nextImages.push(image);
+      } catch (error) {
+        showTransientTip("dogeclaw-image-read-failed-tip", t("chat.imageReadFailed", { error: error?.message || String(error) }));
+      }
+    }
+
+    if (!nextImages.length) {
+      renderInputImageState();
+      return;
+    }
+
+    state.inputImages = existingImages.concat(nextImages).slice(0, INPUT_IMAGE_MAX_COUNT);
+    state.chatVisible = true;
+    state.chatHoldExpanded = true;
+    renderInputImageState();
+    scheduleSync();
+    window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
+  }
+
+	  async function sendTextToDogeclaw(text, images = []) {
+	    const value = String(text || "").trim();
+	    const requestImages = state.llmConfig.imageInputSupported === true ? normalizeInputImages(images).slice(0, INPUT_IMAGE_MAX_COUNT) : [];
+	    if (!value && !requestImages.length) {
+	      return false;
+	    }
+
+	    syncPageConversationId();
+	    const history = getLlmHistory();
+	    const displayMessage = buildImageDisplayMessage(value, requestImages);
+	    const historyText = buildImageHistoryText(value, requestImages);
+	    const requestContent = buildUserRequestContent(value, requestImages);
+	    addHoverMessage(displayMessage, "right", {
+	      sessionId: state.pageConversationId,
+	      source: "page",
+	      historyText
+	    });
+	    await requestPetReply(requestContent, history);
+	    return true;
+	  }
 
   async function handleHoverInputKeydown(event) {
     if (event.key !== "Enter" || event.isComposing) {
@@ -1563,11 +1944,12 @@
     event.preventDefault();
     event.stopPropagation();
 
-    const input = event.currentTarget;
-    const value = input.value.trim();
-    if (!value) {
-      return;
-    }
+	    const input = event.currentTarget;
+	    const value = input.value.trim();
+	    const images = normalizeInputImages(state.inputImages);
+	    if (!value && !images.length) {
+	      return;
+	    }
 
     if (await showLlmConfigIfNeeded()) {
       window.requestAnimationFrame(() => {
@@ -1577,9 +1959,11 @@
       return;
     }
 
-    input.value = "";
-    await sendTextToDogeclaw(value);
-  }
+	    input.value = "";
+	    state.inputImages = [];
+	    renderInputImageState();
+	    await sendTextToDogeclaw(value, images);
+	  }
 
   function onPointerDown(event) {
     if (event.target?.closest?.(".pig-hover-input")) {
@@ -1861,33 +2245,90 @@
     bubbleLayer.append(...Object.values(buttonBubbles));
     buttonIconWrap.append(buttonMascot, bubbleLayer);
 
-    const buttonCopy = document.createElement("span");
-    buttonCopy.className = "pig-button-copy";
+	    const buttonCopy = document.createElement("span");
+	    buttonCopy.className = "pig-button-copy";
 
-    const buttonStatus = document.createElement("span");
-    buttonStatus.className = "pig-button-status";
+	    const buttonStatus = document.createElement("span");
+	    buttonStatus.className = "pig-button-status";
 
-    const buttonStatusDot = document.createElement("span");
-    buttonStatusDot.className = "pig-status-dot";
+	    const buttonStatusDot = document.createElement("span");
+	    buttonStatusDot.className = "pig-status-dot";
 
-    const buttonHoverInput = document.createElement("input");
-    buttonHoverInput.type = "text";
+    const inputImageButton = document.createElement("button");
+    inputImageButton.className = "pig-input-image-button";
+    inputImageButton.type = "button";
+    inputImageButton.title = t("chat.uploadImage");
+    inputImageButton.setAttribute("aria-label", t("chat.uploadImage"));
+    const inputImageIcon = svgElement("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true"
+    });
+    inputImageIcon.append(
+      svgElement("path", {
+        d: "M21.4 11.6l-8.5 8.5a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round"
+      })
+    );
+    inputImageButton.append(inputImageIcon);
+
+    const inputImageFile = document.createElement("input");
+    inputImageFile.className = "pig-input-image-file";
+    inputImageFile.type = "file";
+    inputImageFile.accept = "image/*";
+    inputImageFile.multiple = true;
+
+    const inputImageChip = document.createElement("span");
+    inputImageChip.className = "pig-input-image-chip";
+    const inputImagePreview = document.createElement("span");
+    inputImagePreview.className = "pig-input-image-preview";
+    inputImagePreview.setAttribute("aria-hidden", "true");
+    const inputImageRemove = document.createElement("button");
+    inputImageRemove.className = "pig-input-image-remove";
+    inputImageRemove.type = "button";
+    inputImageRemove.title = t("chat.removeImage");
+    inputImageRemove.setAttribute("aria-label", t("chat.removeImage"));
+    const inputImageRemoveIcon = svgElement("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true"
+    });
+    inputImageRemoveIcon.append(
+      svgElement("path", {
+        d: "M6 6l12 12M18 6L6 18",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round"
+      })
+    );
+    inputImageRemove.append(inputImageRemoveIcon);
+    inputImageChip.append(inputImagePreview, inputImageRemove);
+
+    const buttonInputShell = document.createElement("span");
+    buttonInputShell.className = "pig-hover-input-shell";
+
+	    const buttonHoverInput = document.createElement("input");
+	    buttonHoverInput.type = "text";
     buttonHoverInput.className = "pig-hover-input";
     buttonHoverInput.placeholder = t("chat.inputPlaceholder");
     buttonHoverInput.setAttribute("aria-label", t("chat.inputAria"));
     buttonHoverInput.autocomplete = "off";
+    buttonInputShell.append(inputImageButton, inputImageChip, buttonHoverInput, inputImageFile);
 
     const hoverMessages = document.createElement("div");
     hoverMessages.className = "pig-chat-messages";
     hoverMessages.hidden = true;
 
-    buttonStatus.append(buttonStatusDot);
-    buttonCopy.append(buttonHoverInput, buttonStatus);
+	    buttonStatus.append(buttonStatusDot);
+	    buttonCopy.append(buttonInputShell);
 
     const tailTip = document.createElement("span");
     tailTip.className = "pig-tail-tip";
 
-    button.append(hoverMessages, buttonAura, buttonIconWrap, buttonCopy, tailTip);
+    button.append(hoverMessages, buttonAura, buttonIconWrap, buttonCopy, buttonStatus, tailTip);
     root.append(button);
     (document.body || document.documentElement).append(root);
 
@@ -1916,17 +2357,37 @@
     hoverMessages.addEventListener("pointerdown", handleHoverMessagesPointerDown);
     hoverMessages.addEventListener("pointermove", handleHoverMessagesPointerMove);
     hoverMessages.addEventListener("pointerup", handleHoverMessagesPointerUp);
-    hoverMessages.addEventListener("pointercancel", stopHoverScrollDrag);
-    hoverMessages.addEventListener("click", handleHoverMessagesClick, true);
-    buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
+	    hoverMessages.addEventListener("pointercancel", stopHoverScrollDrag);
+	    hoverMessages.addEventListener("click", handleHoverMessagesClick, true);
+    inputImageButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (state.llmConfig.imageInputSupported !== true) {
+        return;
+      }
+      inputImageFile.click();
+    });
+    inputImageFile.addEventListener("change", handleInputImageChange);
+    inputImageRemove.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearInputImages();
+      window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
+	    });
+	    buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
     window.addEventListener("resize", handleWindowResize);
 
     return {
       root,
-      button,
-      buttonLabel: null,
-      buttonHoverInput,
-      hoverMessages,
+	      button,
+	      buttonLabel: null,
+	      buttonHoverInput,
+      inputImageButton,
+      inputImageFile,
+      inputImageChip,
+      inputImagePreview,
+	      inputImageRemove,
+	      hoverMessages,
       buttonPupils: [leftPupil, rightPupil],
       buttonEyes: [leftEye, rightEye],
       buttonNose: nose,
@@ -1957,6 +2418,12 @@
     await loadTabConversationHistory();
     ensureUiMounted();
     applySavedPosition();
+    refreshLlmConfigStatus()
+      .then(() => {
+        renderInputImageState();
+        scheduleSync();
+      })
+      .catch(() => null);
     if (state.hoverMessages.length) {
       renderHoverMessages();
       scheduleSync();

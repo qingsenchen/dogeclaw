@@ -5,6 +5,9 @@
   const LLM_CONFIG_KEY = CONFIG.storage?.llmConfigKey || "dogeclaw-llm-config";
   const LLM_TIMEOUT_MS = LLM_CONFIG.timeoutMs || 120000;
   const LLM_HISTORY_LIMIT = LLM_CONFIG.maxMessages || 32;
+  const IMAGE_INPUT_PROBE_TIMEOUT_MS = LLM_CONFIG.imageInputProbeTimeoutMs || 15000;
+  const IMAGE_INPUT_PROBE_DATA_URL =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
   const MODEL_ALIASES = LLM_CONFIG.modelAliases || {};
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const DEFAULT_CONFIG = LLM_CONFIG.defaultConfig || {
@@ -62,6 +65,31 @@
     return resolved;
   }
 
+  function normalizeCapabilities(capabilities = {}) {
+    const status = String(capabilities.imageInputStatus || "").trim();
+    const imageInput = capabilities.imageInput === true || status === "supported";
+    return {
+      imageInput,
+      imageInputStatus: imageInput
+        ? "supported"
+        : ["unsupported", "unknown"].includes(status)
+          ? status
+          : "unknown",
+      imageInputCheckedAt: Number(capabilities.imageInputCheckedAt) || 0,
+      imageInputError: String(capabilities.imageInputError || "").slice(0, 500)
+    };
+  }
+
+  function isImageInputUnsupportedError(error) {
+    const message = String(error || "");
+    return /(image_url|image input|vision|multimodal)/i.test(message)
+      && /(unknown variant|expected text|unsupported|not support|does not support|invalid type|only text)/i.test(message);
+  }
+
+  function getProviderErrorMessage(payload, fallback) {
+    return String(payload?.error?.message || payload?.message || fallback || "");
+  }
+
   async function getConfig() {
     const result = await getLocalStorage().get(LLM_CONFIG_KEY);
     const stored = result[LLM_CONFIG_KEY] && typeof result[LLM_CONFIG_KEY] === "object" ? result[LLM_CONFIG_KEY] : {};
@@ -76,7 +104,8 @@
       model: resolveModel(model),
       apiBase,
       apiKey,
-      systemPrompt
+      systemPrompt,
+      capabilities: normalizeCapabilities(stored.capabilities || DEFAULT_CONFIG.capabilities)
     };
   }
 
@@ -98,14 +127,108 @@
 
   async function setConfig(config) {
     const current = await getConfig();
+    const incoming = config && typeof config === "object" ? config : {};
     const next = {
       ...current,
-      ...(config && typeof config === "object" ? config : {})
+      ...incoming
     };
 
     next.model = resolveModel(next.model);
+    const shouldProbeImageInput =
+      ["apiBase", "apiKey", "model"].some((field) => Object.prototype.hasOwnProperty.call(incoming, field)) ||
+      !next.capabilities?.imageInputCheckedAt;
+    next.capabilities = shouldProbeImageInput
+      ? await probeImageInputCapability(next)
+      : normalizeCapabilities(next.capabilities);
     await getLocalStorage().set({ [LLM_CONFIG_KEY]: next });
     return next;
+  }
+
+  async function probeImageInputCapability(config) {
+    const checkedAt = Date.now();
+    const apiBase = String(config.apiBase || "").replace(/\/+$/g, "");
+    if (!apiBase || !config.apiKey) {
+      return {
+        imageInput: false,
+        imageInputStatus: "unknown",
+        imageInputCheckedAt: checkedAt,
+        imageInputError: !apiBase ? "LLM apiBase is not configured" : "LLM API key is not configured"
+      };
+    }
+
+    const controller = new AbortController();
+    const timerId = setTimeout(() => controller.abort(), IMAGE_INPUT_PROBE_TIMEOUT_MS);
+    const url = `${apiBase}/chat/completions`;
+    const body = {
+      model: getProviderModelName(config.model),
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Reply with OK." },
+            { type: "image_url", image_url: { url: IMAGE_INPUT_PROBE_DATA_URL } }
+          ]
+        }
+      ],
+      temperature: 0,
+      stream: false
+    };
+
+    try {
+      debugLog("image input probe request", {
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${maskApiKey(config.apiKey)}`
+        },
+        body
+      });
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      const payload = await response.json().catch(() => ({}));
+      debugLog("image input probe response", {
+        status: response.status,
+        ok: response.ok,
+        body: payload
+      });
+
+      if (response.ok) {
+        return {
+          imageInput: true,
+          imageInputStatus: "supported",
+          imageInputCheckedAt: checkedAt,
+          imageInputError: ""
+        };
+      }
+
+      const errorMessage = getProviderErrorMessage(payload, `LLM request failed: ${response.status}`);
+      return {
+        imageInput: false,
+        imageInputStatus: isImageInputUnsupportedError(errorMessage) ? "unsupported" : "unknown",
+        imageInputCheckedAt: checkedAt,
+        imageInputError: errorMessage.slice(0, 500)
+      };
+    } catch (error) {
+      const errorMessage = error?.name === "AbortError"
+        ? "Image input probe timed out"
+        : error?.message || String(error);
+      return {
+        imageInput: false,
+        imageInputStatus: "unknown",
+        imageInputCheckedAt: checkedAt,
+        imageInputError: String(errorMessage).slice(0, 500)
+      };
+    } finally {
+      clearTimeout(timerId);
+    }
   }
 
   function normalizeMessage(message) {

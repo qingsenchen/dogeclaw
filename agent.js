@@ -5,6 +5,59 @@
   const DEFAULT_MAX_MESSAGES = AGENT_CONFIG.maxMessages || 20;
   const DEFAULT_MAX_CONTENT_LENGTH = AGENT_CONFIG.maxContentLength || 8192;
 
+  function normalizeContentPart(part) {
+    if (part?.type === "text") {
+      const text = String(part.text || "").trim();
+      return text ? { type: "text", text } : null;
+    }
+
+    if (part?.type === "image_url") {
+      const url = String(part.image_url?.url || "").trim();
+      if (!url) {
+        return null;
+      }
+      return {
+        type: "image_url",
+        image_url: {
+          url,
+          ...(part.image_url?.detail ? { detail: String(part.image_url.detail) } : {})
+        }
+      };
+    }
+
+    return null;
+  }
+
+  function normalizeContent(content) {
+    if (Array.isArray(content)) {
+      return content.map(normalizeContentPart).filter(Boolean);
+    }
+    return typeof content === "string" ? content.trim() : String(content || "").trim();
+  }
+
+  function isEmptyContent(content) {
+    return Array.isArray(content) ? !content.length : !String(content || "").trim();
+  }
+
+  function contentToText(content) {
+    if (!Array.isArray(content)) {
+      return String(content || "");
+    }
+
+    return content
+      .map((part) => {
+        if (part?.type === "text") {
+          return String(part.text || "");
+        }
+        if (part?.type === "image_url") {
+          return "[image]";
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+
   function normalizeHistory(history) {
     if (!Array.isArray(history)) {
       return [];
@@ -13,14 +66,15 @@
     return history
       .map((item) => {
         const role = ["system", "user", "assistant", "tool"].includes(item?.role) ? item.role : "user";
+        const content = normalizeContent(item?.content);
         return {
           role,
-          content: typeof item?.content === "string" ? item.content.trim() : String(item?.content || "").trim(),
+          content,
           ...(item?.tool_call_id ? { tool_call_id: item.tool_call_id } : {}),
           ...(Array.isArray(item?.tool_calls) ? { tool_calls: item.tool_calls } : {})
         };
       })
-      .filter((item) => item.role === "tool" || item.content || item.tool_calls);
+      .filter((item) => item.role === "tool" || !isEmptyContent(item.content) || item.tool_calls);
   }
 
   function getToolCallIds(message) {
@@ -97,10 +151,10 @@
   function compressMessages(messages, maxMessages = DEFAULT_MAX_MESSAGES) {
     const normalized = normalizeHistory(messages).map((message) => ({
       ...message,
-      content:
-        message.content.length > DEFAULT_MAX_CONTENT_LENGTH
-          ? `${message.content.slice(0, DEFAULT_MAX_CONTENT_LENGTH)}\n\n[truncated]`
-          : message.content
+	      content:
+	        typeof message.content === "string" && message.content.length > DEFAULT_MAX_CONTENT_LENGTH
+	          ? `${message.content.slice(0, DEFAULT_MAX_CONTENT_LENGTH)}\n\n[truncated]`
+	          : message.content
     }));
 
     if (normalized.length <= maxMessages) {
@@ -110,9 +164,9 @@
     const recentMessages = sanitizeToolMessageSequence(sliceRecentMessages(normalized, maxMessages));
     const oldMessages = normalized.slice(0, Math.max(0, normalized.length - recentMessages.length));
     const summary = oldMessages
-      .slice(-8)
-      .map((message) => `[${message.role}] ${message.content.slice(0, 240)}`)
-      .join("\n");
+	      .slice(-8)
+	      .map((message) => `[${message.role}] ${contentToText(message.content).slice(0, 240)}`)
+	      .join("\n");
 
     return [
       {
@@ -204,13 +258,13 @@
   }
 
   async function runTurn({ message, history = [], onDelta, onStep, tools = true, toolContext = {} } = {}) {
-    const text = String(message || "").trim();
-    if (!text) {
+    const content = normalizeContent(message);
+    if (isEmptyContent(content)) {
       throw new Error("message is required");
     }
 
     const context = createContext(history);
-    context.add({ role: "user", content: text });
+    context.add({ role: "user", content });
     let emptyReplyCount = 0;
 
     for (let iteration = 0; iteration < DEFAULT_MAX_ITERATIONS; iteration += 1) {
@@ -252,13 +306,13 @@
   }
 
   async function runTurnStream({ message, history = [], onDelta, onDone, onStep, signal, tools = true, toolContext = {} } = {}) {
-    const text = String(message || "").trim();
-    if (!text) {
+    const content = normalizeContent(message);
+    if (isEmptyContent(content)) {
       throw new Error("message is required");
     }
 
     const context = createContext(history);
-    context.add({ role: "user", content: text });
+    context.add({ role: "user", content });
     let emptyReplyCount = 0;
 
     for (let iteration = 0; iteration < DEFAULT_MAX_ITERATIONS; iteration += 1) {

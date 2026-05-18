@@ -286,7 +286,12 @@
       providerModel: globalThis.DogeclawLLM?.getProviderModelName ? DogeclawLLM.getProviderModelName(config.model) : config.model || "",
       apiBase: config.apiBase || "",
       apiKey: config.apiKey ? maskSecret(config.apiKey) : "",
-      systemPrompt: config.systemPrompt || ""
+      systemPrompt: config.systemPrompt || "",
+      capabilities: {
+        imageInput: config.capabilities?.imageInput === true,
+        imageInputStatus: config.capabilities?.imageInputStatus || "unknown",
+        imageInputCheckedAt: Number(config.capabilities?.imageInputCheckedAt) || 0
+      }
     };
   }
 

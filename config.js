@@ -31,7 +31,13 @@
       ],
       maxHoverMessages: 24,
       mountWatchdogIntervalMs: 1000,
-      positionKeyPrefix: "dogeclaw-position:"
+      positionKeyPrefix: "dogeclaw-position:",
+      inputImageMaxCount: 5,
+      inputImageMaxDimension: 1536,
+      inputImageCompressQuality: 0.82,
+      inputImageDataUrlMaxLength: 1200000,
+      inputImagesTotalDataUrlMaxLength: 3600000,
+      transientTipDismissMs: 10000
     },
     background: {
       sendSelectionMenuId: "dogeclaw-send-selection",
@@ -52,6 +58,7 @@
     },
     llm: {
       timeoutMs: 120000,
+      imageInputProbeTimeoutMs: 15000,
       debug: true,
       modelAliases: {
         deepseek: "deepseek/deepseek-chat",

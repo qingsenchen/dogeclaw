@@ -35,7 +35,7 @@ const CHANNEL_MIN_LONG_POLL_TIMEOUT_MS = CHANNEL_CONFIG.minLongPollTimeoutMs || 
 const TAB_CONVERSATION_MESSAGE_TEXT_LIMIT = STORAGE_CONFIG.tabConversationMessageTextLimit || 16000;
 const TAB_CONVERSATION_IMAGE_DATA_URL_LIMIT =
   STORAGE_CONFIG.tabConversationImageDataUrlLimit || BROWSER_CONFIG.screenshotDataUrlLimit || 1200000;
-const DATA_IMAGE_MARKDOWN_RE = /^!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)$/;
+const DATA_IMAGE_MARKDOWN_RE = /!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/;
 const WECHAT_DEFAULT_LONG_POLL_TIMEOUT_MS = WECHAT_CONFIG.defaultLongPollTimeoutMs || 35000;
 const WECHAT_MAX_LONG_POLL_TIMEOUT_MS = WECHAT_CONFIG.maxLongPollTimeoutMs || 35000;
 const WECHAT_CONFIG_CACHE_TTL_MS = WECHAT_CONFIG.configCacheTtlMs || 24 * 60 * 60 * 1000;
@@ -85,6 +85,12 @@ function consumeRuntimeLastError() {
   }
 }
 
+function isImageInputUnsupportedError(error) {
+  const message = String(error || "");
+  return /(image_url|image input|vision|multimodal)/i.test(message)
+    && /(unknown variant|expected text|unsupported|not support|does not support|invalid type|only text)/i.test(message);
+}
+
 function normalizeTabConversationMessageText(message) {
   const text = String(message?.text || "");
   if (DATA_IMAGE_MARKDOWN_RE.test(text)) {
@@ -110,6 +116,7 @@ function normalizeTabConversation(payload = {}) {
       source: String(message?.source || "page"),
       side: message?.side === "left" ? "left" : "right",
       text: normalizeTabConversationMessageText(message),
+      historyText: String(message?.historyText || "").slice(0, 16000),
       icon: message?.icon === false || message?.icon === null ? false : String(message?.icon ?? "logo").slice(0, 2048),
       action: String(message?.action || "").slice(0, 128),
       actionLabel: String(message?.actionLabel || "").slice(0, 128),
@@ -1018,9 +1025,10 @@ PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
 
   if (message?.type === "setLlmConfig") {
     DogeclawLLM.setConfig(message.config)
-      .then((config) => sendResponse({
+      .then(() => DogeclawLLM.getConfigStatus())
+      .then(({ config, userConfigured }) => sendResponse({
         ok: true,
-        userConfigured: true,
+        userConfigured,
         config: {
           ...config,
           apiKey: config.apiKey ? "configured" : ""
@@ -1132,6 +1140,9 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
     }
     if (rawError.includes("API key")) {
       return t("llm.missingKey");
+    }
+    if (isImageInputUnsupportedError(rawError)) {
+      return t("llm.imageUnsupported");
     }
     return t("llm.failed", { error: rawError || t("llm.requestFailed") });
   }
