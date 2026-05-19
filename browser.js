@@ -1,6 +1,7 @@
 (function () {
   const CONFIG = globalThis.DogeclawConfig || {};
   const PLATFORM = globalThis.DogeclawPlatform || {};
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const BROWSER_CONFIG = CONFIG.browser || {};
   const BROWSER_ACTION_TIMEOUT_MS = BROWSER_CONFIG.actionTimeoutMs || 10000;
   const MAX_SNAPSHOT_ITEMS = BROWSER_CONFIG.maxSnapshotItems || 80;
@@ -19,14 +20,14 @@
 
   function assertExtensionApi(name, value) {
     if (!value) {
-      throw new Error(`Extension API unavailable: ${name}`);
+      throw new Error(t("runtime.extensionApiUnavailable", { name }));
     }
   }
 
   function withTimeout(promise, timeoutMs = BROWSER_ACTION_TIMEOUT_MS) {
     let timerId = 0;
     const timeout = new Promise((_, reject) => {
-      timerId = setTimeout(() => reject(new Error("browser action timed out")), timeoutMs);
+      timerId = setTimeout(() => reject(new Error(t("browser.actionTimedOut"))), timeoutMs);
     });
 
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timerId));
@@ -68,7 +69,7 @@
     }
     const tab = tabs.find((item) => /^https?:\/\//i.test(item.url || item.pendingUrl || "")) || tabs[0];
     if (!tab?.id) {
-      throw new Error("No active tab found");
+      throw new Error(t("browser.noActiveTab"));
     }
     return tab;
   }
@@ -79,7 +80,7 @@
       assertExtensionApi("tabs.get", PLATFORM.tabs?.get);
       const tab = await PLATFORM.tabs.get(tabId);
       if (!tab?.id) {
-        throw new Error(`Tab not found: ${tabId}`);
+        throw new Error(t("browser.tabNotFound", { tabId }));
       }
       return tab;
     }
@@ -89,7 +90,7 @@
   async function activateTab(tab) {
     assertExtensionApi("tabs.update", PLATFORM.tabs?.update);
     if (!tab?.id) {
-      throw new Error("tab id is required");
+      throw new Error(t("browser.tabIdRequired"));
     }
     if (!tab.active) {
       await PLATFORM.tabs.update(tab.id, { active: true });
@@ -118,10 +119,10 @@
 
   async function ensureTabScript(tab) {
     if (!tab?.id) {
-      throw new Error("tab id is required");
+      throw new Error(t("browser.tabIdRequired"));
     }
     if (!canAccessTabUrl(tab.url)) {
-      throw new Error(`Cannot control this page: ${tab.url || "unknown url"}`);
+      throw new Error(t("browser.cannotControlPage", { url: tab.url || t("common.unknownUrl") }));
     }
 
     try {
@@ -143,7 +144,7 @@
     await ensureTabScript(tab);
     const result = await withTimeout(PLATFORM.tabs.sendMessage(tab.id, payload));
     if (result?.ok === false) {
-      throw new Error(result.error || "browser action failed");
+      throw new Error(result.error || t("browser.actionFailed"));
     }
     return result;
   }
@@ -190,7 +191,7 @@
   async function navigate(args = {}, context = {}) {
     const url = String(args.url || "").trim();
     if (!url) {
-      throw new Error("url is required");
+      throw new Error(t("browser.urlRequired"));
     }
 
     const tab = await getActiveTab();
@@ -284,7 +285,7 @@
 
     let tab = await getTargetTab(args);
     if (!tab?.id || !tab.windowId) {
-      throw new Error("No capturable tab found");
+      throw new Error(t("browser.noCapturableTab"));
     }
 
     tab = await activateTab(tab);
@@ -293,7 +294,7 @@
     }
     const pageUrl = tab.url || tab.pendingUrl || "";
     if (!/^https?:\/\//i.test(pageUrl)) {
-      throw new Error(`Cannot capture this page: ${pageUrl || "unknown url"}`);
+      throw new Error(t("browser.cannotCapturePage", { url: pageUrl || t("common.unknownUrl") }));
     }
 
     const format = String(args.format || "png").toLowerCase() === "jpeg" ? "jpeg" : "png";
@@ -319,7 +320,7 @@
 
     const artifact = {
       type: "image",
-      title: args.title || "页面截图",
+      title: args.title || t("browser.screenshotTitle"),
       dataUrl,
       mimeType: format === "jpeg" ? "image/jpeg" : "image/png",
       url: pageUrl,
@@ -348,7 +349,7 @@
       dataUrlIncluded: includeDataUrl,
       ...(includeDataUrl ? { dataUrl } : {}),
       ...(args.includeDataUrl === true && !includeDataUrl
-        ? { dataUrlOmittedReason: "screenshot data URL is too large for the configured limit" }
+        ? { dataUrlOmittedReason: t("browser.dataUrlTooLarge") }
         : {})
     };
   }
@@ -400,7 +401,7 @@
     if (action === "click") return click(args);
     if (action === "type") return typeText(args);
     if (action === "scroll") return scroll(args);
-    throw new Error(`Unknown browser action: ${action || "(empty)"}`);
+    throw new Error(t("browser.unknownAction", { action: action || t("common.empty") }));
   }
 
   globalThis.DogeclawBrowser = {

@@ -1,6 +1,7 @@
 (function () {
   const CONFIG = globalThis.DogeclawConfig || {};
   const PLATFORM = globalThis.DogeclawPlatform || {};
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const WEATHER_TIMEOUT_MS = CONFIG.tools?.weatherTimeoutMs || 12000;
   const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || [
     "config.js",
@@ -220,7 +221,7 @@
       });
 
       if (!response.ok) {
-        throw new Error(`weather request failed: ${response.status}`);
+        throw new Error(t("tool.weatherFailed", { status: response.status }));
       }
 
       return response.json();
@@ -249,7 +250,7 @@
   async function getWeather(args = {}) {
     const location = normalizeLocation(args.location);
     if (!location) {
-      throw new Error("location is required");
+      throw new Error(t("tool.locationRequired"));
     }
 
     const url = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
@@ -297,7 +298,7 @@
 
   function assertExtensionApi(name, value) {
     if (!value) {
-      throw new Error(`Extension API unavailable: ${name}`);
+      throw new Error(t("runtime.extensionApiUnavailable", { name }));
     }
   }
 
@@ -306,7 +307,7 @@
     const tabs = await PLATFORM.tabs.query({ active: true, currentWindow: true });
     const tab = tabs[0];
     if (!tab?.id || !/^https?:\/\//i.test(tab.url || "")) {
-      throw new Error("No controllable active tab found");
+      throw new Error(t("tool.noControllableTab"));
     }
     return tab;
   }
@@ -334,7 +335,7 @@
       type: "openLlmProviderConfig"
     });
     if (result?.ok === false) {
-      throw new Error(result.error || "failed to open LLM provider form");
+      throw new Error(result.error || t("tool.openLlmFormFailed"));
     }
     return {
       opened: true,
@@ -346,7 +347,7 @@
   async function executeSystemConfig(args = {}) {
     const action = String(args.action || "").trim();
     if (!globalThis.DogeclawLLM) {
-      throw new Error("LLM config runtime is unavailable");
+      throw new Error(t("tool.llmConfigRuntimeUnavailable"));
     }
 
     if (action === "get_llm_config") {
@@ -368,7 +369,7 @@
         config.systemPrompt = args.systemPrompt.trim();
       }
       if (!Object.keys(config).length) {
-        throw new Error("No config fields provided");
+        throw new Error(t("tool.noConfigFields"));
       }
       await DogeclawLLM.setConfig(config);
       return {
@@ -381,7 +382,7 @@
       return openLlmProviderForm();
     }
 
-    throw new Error(`Unknown system config action: ${action || "(empty)"}`);
+    throw new Error(t("tool.unknownSystemConfigAction", { action: action || t("common.empty") }));
   }
 
   function getChannelRuntime(channel) {
@@ -399,7 +400,7 @@
       channel
     });
     if (result?.ok === false) {
-      throw new Error(result.error || "failed to open channel config");
+      throw new Error(result.error || t("tool.openChannelConfigFailed"));
     }
     return {
       opened: true,
@@ -418,7 +419,7 @@
           {
             id: "wechat",
             name: "WeChat",
-            displayName: "微信",
+            displayName: t("channel.wechatDisplayName"),
             configMode: "qrcode"
           }
         ]
@@ -427,7 +428,7 @@
 
     const runtime = getChannelRuntime(channel);
     if (!runtime) {
-      throw new Error(`Unknown channel: ${channel || "(empty)"}`);
+      throw new Error(t("tool.unknownChannel", { channel: channel || t("common.empty") }));
     }
 
     if (action === "get_config") {
@@ -440,7 +441,7 @@
 
     if (action === "start_config") {
       if (!runtime.startLogin) {
-        throw new Error(`${channel} does not support interactive config`);
+        throw new Error(t("tool.channelInteractiveUnsupported", { channel }));
       }
       const login = await runtime.startLogin();
       await openChannelConfigForm(channel);
@@ -448,14 +449,14 @@
         channel,
         opened: true,
         status: login.status || "pending",
-        message: "配置界面已打开，二维码已直接展示在配置卡片中，请用户使用微信扫码。",
+        message: t("tool.channelConfigOpened"),
         qrcodeDisplayed: true
       };
     }
 
     if (action === "check_config") {
       if (!runtime.checkLoginStatus) {
-        throw new Error(`${channel} does not support config status checks`);
+        throw new Error(t("tool.channelStatusUnsupported", { channel }));
       }
       const status = await runtime.checkLoginStatus();
       return {
@@ -466,7 +467,7 @@
       };
     }
 
-    throw new Error(`Unknown channel config action: ${action || "(empty)"}`);
+    throw new Error(t("tool.unknownChannelConfigAction", { action: action || t("common.empty") }));
   }
 
   async function execute(name, args, context = {}) {
@@ -476,7 +477,7 @@
 
     if (name === "browser_control") {
       if (!globalThis.DogeclawBrowser?.execute) {
-        throw new Error("browser control runtime is unavailable");
+        throw new Error(t("tool.browserRuntimeUnavailable"));
       }
       const nextArgs = { ...(args || {}) };
       if (nextArgs.action === "screenshot") {
@@ -497,7 +498,7 @@
       return executeChannelConfig(args);
     }
 
-    throw new Error(`Unknown tool: ${name}`);
+    throw new Error(t("tool.unknown", { tool: name || t("common.empty") }));
   }
 
   globalThis.DogeclawTools = {

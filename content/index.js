@@ -370,13 +370,13 @@
         if (message?.type === "dogeclawToolArtifact" && message.artifact?.type === "image") {
           const dataUrl = String(message.artifact.dataUrl || "");
           if (dataUrl.startsWith("data:image/")) {
-            const title = String(message.artifact.title || "screenshot").replace(/[\]\n\r]/g, " ").trim() || "screenshot";
+            const title = String(message.artifact.title || t("browser.screenshotTitle")).replace(/[\]\n\r]/g, " ").trim() || t("browser.screenshotTitle");
             addHoverMessage(`![${title}](${dataUrl})`, "left", { includeInHistory: false });
             setChatVisible(true);
             sendResponse?.({ ok: true });
             return false;
           }
-          sendResponse?.({ ok: false, error: "invalid image artifact" });
+          sendResponse?.({ ok: false, error: t("image.artifactInvalid") });
           return false;
         }
 
@@ -1612,7 +1612,7 @@
         ? PLATFORM.runtime.connect({ name: "dogeclawChatStream" })
         : globalThis.chrome?.runtime?.connect({ name: "dogeclawChatStream" });
       if (!port) {
-        throw new Error("Extension runtime port is unavailable");
+        throw new Error(t("runtime.portUnavailable"));
       }
       port.onMessage.addListener((payload) => {
         if (settled) {
@@ -1679,7 +1679,7 @@
     state.chatHoldExpanded = true;
     scheduleSync();
 
-    const content = value.length > 12000 ? `${value.slice(0, 12000)}\n\n[Content truncated]` : value;
+    const content = value.length > 12000 ? `${value.slice(0, 12000)}\n\n${t("chat.contentTruncated")}` : value;
     elements.buttonHoverInput.value = content;
     window.requestAnimationFrame(() => {
       elements.buttonHoverInput.focus();

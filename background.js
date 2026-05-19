@@ -61,7 +61,7 @@ const wechatUserConfigCache = new Map();
 function getLocalStorage() {
   const storage = PLATFORM.storage?.local;
   if (!storage?.get || !storage?.set || !storage?.remove) {
-    throw new Error("Extension storage API unavailable");
+    throw new Error(t("runtime.storageApiUnavailable"));
   }
   return storage;
 }
@@ -126,7 +126,7 @@ function getFileNameFromUrl(url, mimeType = "") {
 async function fetchImageAsDataUrl(url) {
   const imageUrl = String(url || "").trim();
   if (!/^https?:\/\//i.test(imageUrl)) {
-    throw new Error("Only http(s) image URLs can be fetched");
+    throw new Error(t("image.fetchOnlyHttp"));
   }
 
   const controller = new AbortController();
@@ -138,22 +138,22 @@ async function fetchImageAsDataUrl(url) {
       signal: controller.signal
     });
     if (!response.ok) {
-      throw new Error(`Image request failed: ${response.status}`);
+      throw new Error(t("image.fetchFailed", { status: response.status }));
     }
 
     const contentLength = Number(response.headers.get("content-length") || 0);
     if (contentLength > REMOTE_IMAGE_FETCH_MAX_BYTES) {
-      throw new Error("Image is too large");
+      throw new Error(t("image.fetchTooLarge"));
     }
 
     const mimeType = String(response.headers.get("content-type") || "image/jpeg").split(";")[0].trim() || "image/jpeg";
     if (!/^image\//i.test(mimeType)) {
-      throw new Error("URL did not return an image");
+      throw new Error(t("image.fetchNotImage"));
     }
 
     const buffer = await response.arrayBuffer();
     if (buffer.byteLength > REMOTE_IMAGE_FETCH_MAX_BYTES) {
-      throw new Error("Image is too large");
+      throw new Error(t("image.fetchTooLarge"));
     }
 
     return {
@@ -554,11 +554,11 @@ function normalizeWechatUpdate(update = {}) {
     "";
   const mediaItems = itemList.filter((item) => [2, 3, 4, 5].includes(Number(item?.type)));
   const mediaText = mediaItems.map((item) => {
-    if (item.type === 2) return "[图片]";
-    if (item.type === 3) return item.voice_item?.text || "[语音]";
-    if (item.type === 4) return `[文件: ${item.file_item?.file_name || "未命名文件"}]`;
-    if (item.type === 5) return "[视频]";
-    return "[媒体]";
+    if (item.type === 2) return t("media.image");
+    if (item.type === 3) return item.voice_item?.text || t("media.voice");
+    if (item.type === 4) return t("media.file", { name: item.file_item?.file_name || t("media.unnamedFile") });
+    if (item.type === 5) return t("media.video");
+    return t("media.generic");
   });
   const content = [String(text || "").trim(), ...mediaText].filter(Boolean).join("\n").trim();
   const fromUser =
@@ -1056,7 +1056,7 @@ PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
   if (message?.type === "getTabConversation") {
     const tabId = getSenderTabId(sender);
     if (!tabId) {
-      sendResponse({ ok: false, error: "tab id is unavailable", conversation: null });
+      sendResponse({ ok: false, error: t("runtime.tabUnavailable"), conversation: null });
       return false;
     }
     getTabConversation(tabId)
@@ -1068,7 +1068,7 @@ PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
   if (message?.type === "setTabConversation") {
     const tabId = getSenderTabId(sender);
     if (!tabId) {
-      sendResponse({ ok: false, error: "tab id is unavailable" });
+      sendResponse({ ok: false, error: t("runtime.tabUnavailable") });
       return false;
     }
     setTabConversation(tabId, message.conversation || {})
@@ -1116,7 +1116,7 @@ PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
   if (message?.type === "channelConfig") {
     const runtime = message.channel === "wechat" ? globalThis.DogeclawWechatChannel : null;
     if (!runtime?.execute) {
-      sendResponse({ ok: false, error: `Unknown channel: ${message.channel || ""}` });
+      sendResponse({ ok: false, error: t("tool.unknownChannel", { channel: message.channel || t("common.empty") }) });
       return false;
     }
     const channelActionMap = {

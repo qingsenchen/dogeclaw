@@ -751,11 +751,11 @@
   }
 
   function mediaItemText(item) {
-    if (item.type === MessageItemType.IMAGE) return "[图片]";
-    if (item.type === MessageItemType.VIDEO) return "[视频]";
-    if (item.type === MessageItemType.FILE) return `[文件: ${item.file_item?.file_name || "未命名文件"}]`;
-    if (item.type === MessageItemType.VOICE) return item.voice_item?.text || "[语音]";
-    return "[媒体]";
+    if (item.type === MessageItemType.IMAGE) return t("media.image");
+    if (item.type === MessageItemType.VIDEO) return t("media.video");
+    if (item.type === MessageItemType.FILE) return t("media.file", { name: item.file_item?.file_name || t("media.unnamedFile") });
+    if (item.type === MessageItemType.VOICE) return item.voice_item?.text || t("media.voice");
+    return t("media.generic");
   }
 
   function isMediaItem(item) {
@@ -776,7 +776,7 @@
           const refBody = bodyFromItemList([ref.message_item]);
           if (refBody) parts.push(refBody);
         }
-        return parts.length ? `[引用: ${parts.join(" | ")}]\n${text}` : text;
+        return parts.length ? t("media.quote", { text: parts.join(" | "), body: text }) : text;
       }
       if (item.type === MessageItemType.VOICE && item.voice_item?.text) {
         return String(item.voice_item.text);
@@ -797,7 +797,7 @@
         fileName: `image${getExtensionFromMime(mimeType)}`,
         size: bytes.length,
         dataUrl: buildDataUrl(bytes, mimeType),
-        text: "[图片]"
+        text: t("media.image")
       };
     }
     if (item.type === MessageItemType.VIDEO) {
@@ -813,7 +813,7 @@
         fileName: `video${getExtensionFromMime(mimeType)}`,
         size: bytes.length,
         dataUrl: buildDataUrl(bytes, mimeType),
-        text: "[视频]"
+        text: t("media.video")
       };
     }
     if (item.type === MessageItemType.FILE) {
@@ -830,7 +830,7 @@
         fileName,
         size: bytes.length,
         dataUrl: buildDataUrl(bytes, mimeType),
-        text: `[文件: ${fileName}]`
+        text: t("media.file", { name: fileName })
       };
     }
     if (item.type === MessageItemType.VOICE) {
@@ -841,7 +841,7 @@
           mimeType: "",
           fileName: "",
           size: 0,
-          text: voice.text || "[语音]"
+          text: voice.text || t("media.voice")
         };
       }
       if (!voice.media?.aes_key) {
@@ -854,7 +854,7 @@
         fileName: "voice.silk",
         size: bytes.length,
         dataUrl: buildDataUrl(bytes, "audio/silk"),
-        text: voice.text || "[语音]"
+        text: voice.text || t("media.voice")
       };
     }
     return null;
@@ -872,14 +872,14 @@
         if (attachment) attachments.push(attachment);
       } catch (error) {
         attachments.push({
-          type: String(mediaItemText(item)).replace(/[[\]]/g, "") || "media",
-          text: `${mediaItemText(item)}（下载失败：${error?.message || String(error)}）`,
+          type: String(mediaItemText(item)).replace(/[[\]]/g, "") || t("media.genericBare"),
+          text: t("media.downloadFailed", { label: mediaItemText(item), error: error?.message || String(error) }),
           error: error?.message || String(error)
         });
       }
     }
 
-    const mediaText = attachments.map((attachment) => attachment.text || `[${attachment.type || "媒体"}]`).filter(Boolean);
+    const mediaText = attachments.map((attachment) => attachment.text || `[${attachment.type || t("media.genericBare")}]`).filter(Boolean);
     const content = [text, ...mediaText].filter(Boolean).join("\n").trim();
     return {
       text,
@@ -1032,7 +1032,7 @@
 
   function createQrcodeDataUrl(qrcodeImgContent) {
     if (!globalThis.DogeclawQrCode) {
-      throw new Error("qrcode generator is not loaded");
+      throw new Error(t("channel.qrGeneratorMissing"));
     }
 
     const qr = globalThis.DogeclawQrCode(0, "M");
@@ -1051,7 +1051,7 @@
   function getLocalStorage() {
     const storage = PLATFORM.storage?.local;
     if (!storage?.get || !storage?.set) {
-      throw new Error("Extension storage API unavailable");
+      throw new Error(t("runtime.storageApiUnavailable"));
     }
     return storage;
   }
@@ -1185,7 +1185,7 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.errmsg || payload?.message || `wechat login request failed: ${response.status}`);
+        throw new Error(payload?.errmsg || payload?.message || t("channel.wechatLoginRequestFailed", { status: response.status }));
       }
       return payload;
     } finally {
@@ -1196,10 +1196,10 @@
   async function request(pathname, body = {}, options = {}) {
     const config = await getConfig();
     if (!config.enabled) {
-      throw new Error("wechat channel is disabled");
+      throw new Error(t("channel.wechatDisabled"));
     }
     if (!config.token) {
-      throw new Error("wechat channel token is not configured");
+      throw new Error(t("channel.wechatTokenMissing"));
     }
 
     const timeout = withTimeout(options.timeoutMs || DEFAULT_TIMEOUT_MS);
@@ -1222,7 +1222,7 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.errmsg || payload?.message || `wechat request failed: ${response.status}`);
+        throw new Error(payload?.errmsg || payload?.message || t("channel.wechatRequestFailed", { status: response.status }));
       }
       return payload;
     } finally {
@@ -1313,7 +1313,7 @@
     );
     const picked = pickQrcode(payload);
     if (!picked.qrcode || !picked.qrcodeImgContent) {
-      throw new Error("wechat qrcode response is incomplete");
+      throw new Error(t("channel.qrResponseIncomplete"));
     }
 
     return setLoginState({
@@ -1331,7 +1331,7 @@
   async function checkLoginStatus() {
     const login = await getLoginState();
     if (!login.qrcode) {
-      throw new Error("wechat login has not started");
+      throw new Error(t("channel.loginNotStarted"));
     }
     if (!isLoginFresh(login)) {
       return setLoginState({
@@ -1530,7 +1530,7 @@
 
   async function sendMessage(message = {}) {
     if (!MEDIA?.uploadMedia || !MEDIA?.buildMediaItem || !MEDIA?.buildTextItem) {
-      throw new Error("wechat media runtime is unavailable");
+      throw new Error(t("channel.mediaRuntimeUnavailable"));
     }
 
     const toUser = message.toUser || message.touser || message.openid || "";
@@ -1538,10 +1538,10 @@
     const mediaList = normalizeMediaList(message);
     const contextToken = message.contextToken || message.context_token || "";
     if (!toUser) {
-      throw new Error("touser is required");
+      throw new Error(t("channel.toUserRequired"));
     }
     if (!content && !mediaList.length) {
-      throw new Error("text content or media is required");
+      throw new Error(t("channel.textOrMediaRequired"));
     }
 
     let lastResponse = null;
@@ -1608,7 +1608,7 @@
   async function getBotConfig(options = {}) {
     const userId = String(options.ilinkUserId || options.userId || options.fromUser || options.toUser || "").trim();
     if (!userId) {
-      throw new Error("ilink_user_id is required");
+      throw new Error(t("channel.ilinkUserIdRequired"));
     }
 
     return request(
@@ -1639,10 +1639,10 @@
     };
 
     if (!payload.ilink_user_id) {
-      throw new Error("ilink_user_id is required");
+      throw new Error(t("channel.ilinkUserIdRequired"));
     }
     if (!payload.typing_ticket) {
-      throw new Error("typing_ticket is required");
+      throw new Error(t("channel.typingTicketRequired"));
     }
 
     return request("sendtyping", payload, {
@@ -1666,7 +1666,7 @@
     if (action === "send_typing") return sendTyping(args);
     if (action === "get_state") return getState();
     if (action === "set_state") return setState(args.state || args);
-    throw new Error(`Unknown wechat channel action: ${action || "(empty)"}`);
+    throw new Error(t("channel.unknownWechatAction", { action: action || t("common.empty") }));
   }
 
   globalThis.DogeclawWechatChannel = {

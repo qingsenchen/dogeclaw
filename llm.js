@@ -21,7 +21,7 @@
   function getLocalStorage() {
     const storage = PLATFORM.storage?.local;
     if (!storage?.get || !storage?.set) {
-      throw new Error("Extension storage API unavailable");
+      throw new Error(t("runtime.storageApiUnavailable"));
     }
     return storage;
   }
@@ -51,7 +51,7 @@
   function normalizeApiBase(value) {
     const raw = String(value || DEFAULT_CONFIG.apiBase).trim().replace(/\/+$/g, "");
     if (!raw) {
-      throw new Error("LLM apiBase is not configured");
+      throw new Error(t("llm.apiBaseMissing"));
     }
 
     const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
@@ -59,7 +59,7 @@
     try {
       parsed = new URL(withScheme);
     } catch {
-      throw new Error("LLM apiBase must be a valid URL");
+      throw new Error(t("llm.apiBaseInvalid"));
     }
 
     if (parsed.protocol === "https:" || (parsed.protocol === "http:" && isLoopbackHostname(parsed.hostname))) {
@@ -68,7 +68,7 @@
       return parsed.href.replace(/\/+$/g, "");
     }
 
-    throw new Error("LLM apiBase must use HTTPS, except localhost endpoints for local development");
+    throw new Error(t("llm.apiBaseHttpsRequired"));
   }
 
   function debugLog(label, payload) {
@@ -193,7 +193,7 @@
         imageInput: false,
         imageInputStatus: "unknown",
         imageInputCheckedAt: checkedAt,
-        imageInputError: !apiBase ? "LLM apiBase is not configured" : "LLM API key is not configured"
+        imageInputError: !apiBase ? t("llm.apiBaseMissing") : t("llm.apiKeyNotConfigured")
       };
     }
 
@@ -250,7 +250,7 @@
         };
       }
 
-      const errorMessage = getProviderErrorMessage(payload, `LLM request failed: ${response.status}`);
+      const errorMessage = getProviderErrorMessage(payload, t("llm.requestStatusFailed", { status: response.status }));
       return {
         imageInput: false,
         imageInputStatus: isImageInputUnsupportedError(errorMessage) ? "unsupported" : "unknown",
@@ -385,12 +385,12 @@
   async function buildRequest(message, history = [], stream = false, tools = null) {
     const text = String(message || "").trim();
     if (!text) {
-      throw new Error("message is required");
+      throw new Error(t("llm.messageRequired"));
     }
 
     const config = await getConfig();
     if (!config.apiKey) {
-      throw new Error("LLM API key is not configured");
+      throw new Error(t("llm.apiKeyNotConfigured"));
     }
 
     const apiBase = normalizeApiBase(config.apiBase);
@@ -414,7 +414,7 @@
   async function buildMessagesRequest(messages, stream = false, tools = null) {
     const config = await getConfig();
     if (!config.apiKey) {
-      throw new Error("LLM API key is not configured");
+      throw new Error(t("llm.apiKeyNotConfigured"));
     }
 
     const apiBase = normalizeApiBase(config.apiBase);
@@ -494,7 +494,7 @@
         body: payload
       });
       if (!response.ok) {
-        throw new Error(payload?.error?.message || payload?.message || `LLM request failed: ${response.status}`);
+        throw new Error(payload?.error?.message || payload?.message || t("llm.requestStatusFailed", { status: response.status }));
       }
 
       const message = payload?.choices?.[0]?.message || {};
@@ -568,7 +568,7 @@
           ok: response.ok,
           body: payload
         });
-        throw new Error(payload?.error?.message || payload?.message || `LLM request failed: ${response.status}`);
+        throw new Error(payload?.error?.message || payload?.message || t("llm.requestStatusFailed", { status: response.status }));
       }
 
       debugLog("stream response headers", {
@@ -581,7 +581,7 @@
         const fallback = await response.json().catch(() => ({}));
         const content = fallback?.choices?.[0]?.message?.content || "";
         if (!content) {
-          throw new Error("LLM returned empty content");
+          throw new Error(t("llm.returnedEmptyContent"));
         }
         fullText = String(content).trim();
         onDelta?.(fullText);

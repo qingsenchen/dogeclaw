@@ -260,7 +260,7 @@
   async function runTurn({ message, history = [], onDelta, onStep, tools = true, toolContext = {} } = {}) {
     const content = normalizeContent(message);
     if (isEmptyContent(content)) {
-      throw new Error("message is required");
+      throw new Error(t("llm.messageRequired"));
     }
 
     const context = createContext(history);
@@ -288,7 +288,7 @@
           addEmptyReplyContinuation(context);
           continue;
         }
-        throw new Error("LLM returned empty content");
+        throw new Error(t("llm.returnedEmptyContent"));
       }
 
       onDelta?.(result.content, result.content);
@@ -302,13 +302,13 @@
       };
     }
 
-    throw new Error(`Agent hit iteration limit (${DEFAULT_MAX_ITERATIONS})`);
+    throw new Error(t("agent.iterationLimit", { count: DEFAULT_MAX_ITERATIONS }));
   }
 
   async function runTurnStream({ message, history = [], onDelta, onDone, onStep, signal, tools = true, toolContext = {} } = {}) {
     const content = normalizeContent(message);
     if (isEmptyContent(content)) {
-      throw new Error("message is required");
+      throw new Error(t("llm.messageRequired"));
     }
 
     const context = createContext(history);
@@ -343,7 +343,7 @@
           addEmptyReplyContinuation(context);
           continue;
         }
-        throw new Error("LLM returned empty content");
+        throw new Error(t("llm.returnedEmptyContent"));
       }
 
       context.add({ role: "assistant", content });
@@ -359,7 +359,7 @@
       return finalResult;
     }
 
-    throw new Error(`Agent hit iteration limit (${DEFAULT_MAX_ITERATIONS})`);
+    throw new Error(t("agent.iterationLimit", { count: DEFAULT_MAX_ITERATIONS }));
   }
 
   globalThis.DogeclawAgent = {

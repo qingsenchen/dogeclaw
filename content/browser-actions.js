@@ -1,4 +1,5 @@
 (function () {
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const browserRefs = new Map();
   let browserRefCounter = 0;
 
@@ -143,7 +144,7 @@
       }
       element.value = `${clear ? "" : element.value || ""}${text}`;
     } else {
-      throw new Error("Target is not editable");
+      throw new Error(t("browser.targetNotEditable"));
     }
 
     element.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
@@ -177,7 +178,7 @@
     if (action === "click") {
       const element = findBrowserElement(message);
       if (!element) {
-        throw new Error("Target element not found");
+        throw new Error(t("browser.targetElementNotFound"));
       }
       element.scrollIntoView({ block: "center", inline: "center" });
       element.click();
@@ -187,7 +188,7 @@
     if (action === "type") {
       const element = findBrowserElement(message);
       if (!element) {
-        throw new Error("Target element not found");
+        throw new Error(t("browser.targetElementNotFound"));
       }
       element.scrollIntoView({ block: "center", inline: "center" });
       dispatchBrowserInput(element, String(message.text || ""), {
@@ -207,7 +208,7 @@
       };
     }
 
-    throw new Error(`Unknown browser action: ${action || "(empty)"}`);
+    throw new Error(t("browser.unknownAction", { action: action || t("common.empty") }));
   }
 
 
