@@ -803,6 +803,11 @@
         white-space: nowrap;
       }
 
+      .pig-floating-button.is-thinking.is-stoppable .pig-button-status {
+        pointer-events: auto;
+        cursor: pointer;
+      }
+
       #${rootId} .pig-input-image-file {
         display: none !important;
       }
@@ -1039,12 +1044,23 @@
         border-radius: 999px;
         background: #94a3b8;
         box-shadow: 0 0 10px rgba(148, 163, 184, 0.38);
+        transition: width 120ms ease, height 120ms ease, border-radius 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
       }
 
       .pig-floating-button.is-thinking .pig-status-dot {
         background: #60a5fa;
         box-shadow: 0 0 12px rgba(96, 165, 250, 0.55);
         animation: pig-pulse 1.4s infinite;
+      }
+
+      .pig-floating-button.is-thinking.is-stoppable .pig-button-status:hover .pig-status-dot,
+      .pig-floating-button.is-thinking.is-stoppable .pig-button-status:focus-visible .pig-status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        background: #f87171;
+        box-shadow: 0 0 12px rgba(248, 113, 113, 0.58);
+        animation: none;
       }
 
       .pig-tail-tip {

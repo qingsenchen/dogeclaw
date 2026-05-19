@@ -6,6 +6,7 @@
   const LLM_TIMEOUT_MS = LLM_CONFIG.timeoutMs || 120000;
   const LLM_HISTORY_LIMIT = LLM_CONFIG.maxMessages || 32;
   const IMAGE_INPUT_PROBE_TIMEOUT_MS = LLM_CONFIG.imageInputProbeTimeoutMs || 15000;
+  const STREAM_INCLUDE_USAGE = LLM_CONFIG.streamIncludeUsage !== false;
   const IMAGE_INPUT_PROBE_DATA_URL =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
   const MODEL_ALIASES = LLM_CONFIG.modelAliases || {};
@@ -382,6 +383,16 @@
     ];
   }
 
+  function getStreamOptions(stream) {
+    return stream && STREAM_INCLUDE_USAGE
+      ? {
+          stream_options: {
+            include_usage: true
+          }
+        }
+      : {};
+  }
+
   async function buildRequest(message, history = [], stream = false, tools = null) {
     const text = String(message || "").trim();
     if (!text) {
@@ -406,6 +417,7 @@
         ],
         temperature: 0.7,
         stream,
+        ...getStreamOptions(stream),
         ...(Array.isArray(tools) && tools.length ? { tools, tool_choice: "auto" } : {})
       }
     };
@@ -427,6 +439,7 @@
         messages: buildMessageList(config, messages),
         temperature: 0.7,
         stream,
+        ...getStreamOptions(stream),
         ...(Array.isArray(tools) && tools.length ? { tools, tool_choice: "auto" } : {})
       }
     };
@@ -533,6 +546,7 @@
     const timerId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
     const abortFromSignal = () => controller.abort();
     let fullText = "";
+    let streamUsage = null;
     const toolCallsByIndex = {};
 
     try {
@@ -599,7 +613,7 @@
           readResult = await reader.read();
         } catch (error) {
           if (isAbortLikeError(error) && fullText) {
-            const result = { content: fullText.trim(), model: config.model, usage: null, interrupted: true };
+            const result = { content: fullText.trim(), model: config.model, usage: streamUsage, interrupted: true };
             onDone?.(result);
             return result;
           }
@@ -630,7 +644,7 @@
               content: fullText.trim(),
               toolCalls: normalizeToolCalls(rawToolCalls),
               model: config.model,
-              usage: null
+              usage: streamUsage
             };
             onDone?.(result);
             return result;
@@ -641,6 +655,10 @@
             chunk = JSON.parse(data);
           } catch {
             continue;
+          }
+
+          if (chunk?.usage) {
+            streamUsage = chunk.usage;
           }
 
           const delta = chunk?.choices?.[0]?.delta?.content || "";
@@ -688,7 +706,7 @@
         content: fullText.trim(),
         toolCalls: normalizeToolCalls(rawToolCalls),
         model: config.model,
-        usage: null
+        usage: streamUsage
       };
       debugLog("stream done", result);
       onDone?.(result);

@@ -133,6 +133,7 @@
   state.pageConversationId = getPageConversationId();
   let tabHistorySaveTimer = 0;
   let tabHistorySavePromise = Promise.resolve();
+  let activeReplyStop = null;
   const hoverTipDismissTimers = new Map();
 
   function getPageConversationId() {
@@ -503,12 +504,23 @@
   }
 
   function syncUI() {
+    const canStop = Boolean(state.thinkingActive && activeReplyStop);
     elements.button.classList.toggle("is-open", false);
 	    elements.button.classList.toggle("is-dragging", state.drag.active && state.drag.moved);
 	    elements.button.classList.toggle("is-thinking", state.thinkingActive);
+    elements.button.classList.toggle("is-stoppable", canStop);
 	    elements.button.classList.toggle("is-chat-holding", state.chatHoldExpanded);
 	    elements.button.classList.toggle("supports-input-image", state.llmConfig.imageInputSupported === true);
 	    elements.button.classList.toggle("has-input-image", state.llmConfig.imageInputSupported === true && state.inputImages.length > 0);
+    elements.buttonStatus.tabIndex = canStop ? 0 : -1;
+    elements.buttonStatus.setAttribute("role", canStop ? "button" : "presentation");
+    if (canStop) {
+      elements.buttonStatus.setAttribute("aria-label", t("chat.stopGenerating"));
+      elements.buttonStatus.title = t("chat.stopGenerating");
+    } else {
+      elements.buttonStatus.removeAttribute("aria-label");
+      elements.buttonStatus.title = "";
+    }
     renderInputImageDragState();
 	    if (!elements.hoverMessages.hidden) {
       updateHoverMessagesBounds();
@@ -1593,6 +1605,33 @@
     return Boolean(String(content || "").trim());
   }
 
+  function restoreInputAfterReply() {
+    state.chatHoldExpanded = true;
+    if (state.chatHideTimer) {
+      window.clearTimeout(state.chatHideTimer);
+      state.chatHideTimer = 0;
+    }
+    scheduleSync();
+  }
+
+  function clearActiveReplyStop(stopReply) {
+    if (activeReplyStop === stopReply) {
+      activeReplyStop = null;
+      scheduleSync();
+    }
+  }
+
+  function stopCurrentReply(event = null) {
+    if (!state.thinkingActive || typeof activeReplyStop !== "function") {
+      return false;
+    }
+
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    activeReplyStop();
+    return true;
+  }
+
   async function requestPetReply(message, history) {
     if (!hasRequestContent(message)) {
       return;
@@ -1605,25 +1644,39 @@
     let fullText = "";
     let settled = false;
     let port = null;
+    let stopReply = null;
     const timeoutId = window.setTimeout(() => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      setThinkingStatus("");
-      updateHoverMessage(replyId, fullText || t("llm.timeout"));
+      completeReply(t("llm.timeout"));
       try {
         port?.disconnect();
       } catch {}
     }, 125000);
 
-    function finish() {
+    function completeReply(fallbackText) {
+      if (settled) {
+        return;
+      }
+
       settled = true;
       window.clearTimeout(timeoutId);
       setThinkingStatus("");
-      updateHoverMessage(replyId, fullText || t("llm.empty"));
+      restoreInputAfterReply();
+      clearActiveReplyStop(stopReply);
+      updateHoverMessage(replyId, fullText || fallbackText);
     }
+
+    function finish() {
+      completeReply(t("llm.empty"));
+    }
+
+    stopReply = () => {
+      completeReply(t("llm.interrupted"));
+      try {
+        port?.disconnect();
+      } catch {}
+    };
+    activeReplyStop = stopReply;
+    scheduleSync();
 
     try {
       port = PLATFORM.runtime?.connect
@@ -1657,10 +1710,7 @@
         }
 
         if (payload?.type === "error") {
-          settled = true;
-          window.clearTimeout(timeoutId);
-          setThinkingStatus("");
-          updateHoverMessage(replyId, formatLlmErrorMessage(payload.error, fullText));
+          completeReply(formatLlmErrorMessage(payload.error, fullText));
         }
       });
       port.onDisconnect.addListener(() => {
@@ -1677,10 +1727,7 @@
         replyId
       });
     } catch (error) {
-      settled = true;
-      window.clearTimeout(timeoutId);
-      setThinkingStatus("");
-      updateHoverMessage(replyId, formatLlmErrorMessage(error?.message || String(error)));
+      completeReply(formatLlmErrorMessage(error?.message || String(error)));
     }
   }
 
@@ -2632,7 +2679,6 @@
 
 	    const buttonStatusDot = document.createElement("span");
 	    buttonStatusDot.className = "pig-status-dot";
-
     const inputImageButton = document.createElement("button");
     inputImageButton.className = "pig-input-image-button";
     inputImageButton.type = "button";
@@ -2728,6 +2774,18 @@
       setChatVisible(true);
     });
     button.addEventListener("focusout", hideChatIfCollapsed);
+    buttonStatus.addEventListener("pointerdown", (event) => {
+      if (state.thinkingActive && activeReplyStop) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    });
+    buttonStatus.addEventListener("click", stopCurrentReply);
+    buttonStatus.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        stopCurrentReply(event);
+      }
+    });
     buttonIconWrap.addEventListener("pointerdown", onPointerDown);
     buttonIconWrap.addEventListener("pointermove", onPointerMove);
     buttonIconWrap.addEventListener("pointerup", onPointerUp);
@@ -2765,9 +2823,10 @@
     return {
       root,
 	      button,
-	      buttonLabel: null,
+      buttonLabel: null,
       buttonInputShell,
 	      buttonHoverInput,
+      buttonStatus,
       inputImageButton,
       inputImageFile,
       inputImageChip,

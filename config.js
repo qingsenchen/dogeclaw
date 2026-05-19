@@ -59,6 +59,7 @@
     llm: {
       timeoutMs: 120000,
       imageInputProbeTimeoutMs: 15000,
+      streamIncludeUsage: true,
       debug: false,
       modelAliases: {
         deepseek: "deepseek/deepseek-chat",
