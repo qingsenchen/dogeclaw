@@ -298,6 +298,22 @@
     }, TAB_HISTORY_SAVE_DELAY_MS);
   }
 
+  function holdChatOpenForNavigation() {
+    if (state.chatHideTimer) {
+      window.clearTimeout(state.chatHideTimer);
+      state.chatHideTimer = 0;
+    }
+    if (state.chatCollapseTimer) {
+      window.clearTimeout(state.chatCollapseTimer);
+      state.chatCollapseTimer = 0;
+    }
+
+    state.chatVisible = true;
+    state.chatHoldExpanded = true;
+    renderHoverMessages();
+    scheduleSync();
+  }
+
   function waitForNextPaint() {
     return new Promise((resolve) => {
       window.requestAnimationFrame(() => {
@@ -339,6 +355,7 @@
 
         if (message?.type === "dogeclawPrepareForNavigation") {
           state.navigationInProgress = true;
+          holdChatOpenForNavigation();
           if (state.navigationResetTimer) {
             window.clearTimeout(state.navigationResetTimer);
           }
@@ -1476,6 +1493,7 @@
 
     const existing = state.hoverMessages.find((message) => message.id === replyId);
     state.chatVisible = true;
+    state.chatHoldExpanded = true;
     if (payload.pending) {
       setThinkingStatus(t("status.generating"));
     } else {

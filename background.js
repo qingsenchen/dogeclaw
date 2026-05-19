@@ -244,6 +244,7 @@ async function patchTabConversationMessage(tabId, replyId, patch = {}) {
     ...(existing || {}),
     url: currentUrl,
     chatVisible: true,
+    chatHoldExpanded: true,
     messages
   });
 }
