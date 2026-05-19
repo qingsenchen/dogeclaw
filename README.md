@@ -20,6 +20,7 @@
   · <a href="#features">Features</a>
   · <a href="#quick-start">Quick Start</a>
   · <a href="#configuration">Configuration</a>
+  · <a href="#privacy-and-permissions">Privacy</a>
   · <a href="#development">Development</a>
 </p>
 
@@ -95,6 +96,8 @@ Open the channel configuration view from the floating panel, start the QR login 
 ## Privacy And Permissions
 
 dogeclaw runs locally as a browser extension, but content you send to the assistant may be sent to the model provider you configure. This can include typed prompts, selected text, page context, screenshots, tool results, and WeChat channel content.
+
+Before publishing or installing from a store, review the [Privacy Policy](PRIVACY.md) and [Chrome Web Store compliance notes](docs/chrome-store-compliance.md).
 
 Requested extension permissions:
 

@@ -20,6 +20,7 @@
   · <a href="#features">Features</a>
   · <a href="#quick-start">Quick Start</a>
   · <a href="#configuration">Configuration</a>
+  · <a href="#privacy-and-permissions">Privacy</a>
   · <a href="#development">Development</a>
 </p>
 
@@ -95,6 +96,8 @@ API Key は Chrome extension storage に保存されます。OpenAI、DashScope-
 ## Privacy And Permissions
 
 dogeclaw はローカルのブラウザ拡張機能として動作しますが、アシスタントへ送信した内容は、設定したモデルプロバイダーへ送られる場合があります。これには入力プロンプト、選択テキスト、ページコンテキスト、スクリーンショット、ツール結果、WeChat チャンネル内容が含まれます。
+
+ストア公開または正式インストール前に、[Privacy Policy](PRIVACY.md) と [Chrome Web Store compliance notes](docs/chrome-store-compliance.md) を確認してください。
 
 要求する extension permissions:
 

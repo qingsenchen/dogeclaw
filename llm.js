@@ -43,6 +43,34 @@
     return `${text.slice(0, 4)}...${text.slice(-4)}`;
   }
 
+  function isLoopbackHostname(hostname) {
+    const value = String(hostname || "").toLowerCase();
+    return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "[::1]" || value.endsWith(".localhost");
+  }
+
+  function normalizeApiBase(value) {
+    const raw = String(value || DEFAULT_CONFIG.apiBase).trim().replace(/\/+$/g, "");
+    if (!raw) {
+      throw new Error("LLM apiBase is not configured");
+    }
+
+    const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
+    let parsed;
+    try {
+      parsed = new URL(withScheme);
+    } catch {
+      throw new Error("LLM apiBase must be a valid URL");
+    }
+
+    if (parsed.protocol === "https:" || (parsed.protocol === "http:" && isLoopbackHostname(parsed.hostname))) {
+      parsed.search = "";
+      parsed.hash = "";
+      return parsed.href.replace(/\/+$/g, "");
+    }
+
+    throw new Error("LLM apiBase must use HTTPS, except localhost endpoints for local development");
+  }
+
   function debugLog(label, payload) {
     if (!DEBUG_LLM) {
       return;
@@ -134,6 +162,9 @@
     };
 
     next.model = resolveModel(next.model);
+    if (Object.prototype.hasOwnProperty.call(incoming, "apiBase")) {
+      next.apiBase = normalizeApiBase(next.apiBase);
+    }
     const shouldProbeImageInput =
       ["apiBase", "apiKey", "model"].some((field) => Object.prototype.hasOwnProperty.call(incoming, field)) ||
       !next.capabilities?.imageInputCheckedAt;
@@ -146,7 +177,17 @@
 
   async function probeImageInputCapability(config) {
     const checkedAt = Date.now();
-    const apiBase = String(config.apiBase || "").replace(/\/+$/g, "");
+    let apiBase = "";
+    try {
+      apiBase = normalizeApiBase(config.apiBase);
+    } catch (error) {
+      return {
+        imageInput: false,
+        imageInputStatus: "unknown",
+        imageInputCheckedAt: checkedAt,
+        imageInputError: error?.message || String(error)
+      };
+    }
     if (!apiBase || !config.apiKey) {
       return {
         imageInput: false,
@@ -352,10 +393,7 @@
       throw new Error("LLM API key is not configured");
     }
 
-    const apiBase = String(config.apiBase || "").replace(/\/+$/g, "");
-    if (!apiBase) {
-      throw new Error("LLM apiBase is not configured");
-    }
+    const apiBase = normalizeApiBase(config.apiBase);
 
     return {
       config,
@@ -379,10 +417,7 @@
       throw new Error("LLM API key is not configured");
     }
 
-    const apiBase = String(config.apiBase || "").replace(/\/+$/g, "");
-    if (!apiBase) {
-      throw new Error("LLM apiBase is not configured");
-    }
+    const apiBase = normalizeApiBase(config.apiBase);
 
     return {
       config,

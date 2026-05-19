@@ -59,7 +59,7 @@
     llm: {
       timeoutMs: 120000,
       imageInputProbeTimeoutMs: 15000,
-      debug: true,
+      debug: false,
       modelAliases: {
         deepseek: "deepseek/deepseek-chat",
         "deepseek-r1": "deepseek/deepseek-reasoner",

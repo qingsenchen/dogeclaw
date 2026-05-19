@@ -20,6 +20,7 @@
   · <a href="#功能">功能</a>
   · <a href="#快速开始">快速开始</a>
   · <a href="#配置">配置</a>
+  · <a href="#隐私和权限">隐私</a>
   · <a href="#开发">开发</a>
 </p>
 
@@ -95,6 +96,8 @@ API Key 会保存在 Chrome 扩展本地存储中。你可以使用 OpenAI、Das
 ## 隐私和权限
 
 dogeclaw 以本地浏览器扩展形式运行，但你发送给助手的内容可能会发往你配置的模型服务商。这些内容可能包括输入消息、选中文本、页面上下文、截图、工具结果和微信频道内容。
+
+发布到扩展商店或正式安装前，请先查看 [Privacy Policy](PRIVACY.md) 和 [Chrome Web Store 合规说明](docs/chrome-store-compliance.md)。
 
 扩展会请求以下权限：
 
