@@ -176,6 +176,8 @@ function normalizeTabConversation(payload = {}) {
     pageConversationId: String(payload.pageConversationId || "").slice(0, 2048),
     chatVisible: Boolean(payload.chatVisible),
     chatHoldExpanded: Boolean(payload.chatHoldExpanded),
+    usage: normalizeUsage(payload.usage),
+    contextUsage: normalizeContextUsage(payload.contextUsage),
     savedAt: Number(payload.savedAt) || Date.now(),
     messages: messages.slice(-maxMessages).map((message) => ({
       id: String(message?.id || ""),
@@ -191,6 +193,35 @@ function normalizeTabConversation(payload = {}) {
       pending: Boolean(message?.pending),
       includeInHistory: message?.includeInHistory !== false
     })).filter((message) => message.id && message.text)
+  };
+}
+
+function normalizeUsage(usage = null) {
+  if (!usage || typeof usage !== "object") {
+    return null;
+  }
+
+  return {
+    prompt_tokens: Math.max(0, Number(usage.prompt_tokens ?? usage.promptTokens ?? usage.input_tokens ?? usage.inputTokens) || 0),
+    completion_tokens: Math.max(0, Number(usage.completion_tokens ?? usage.completionTokens ?? usage.output_tokens ?? usage.outputTokens) || 0),
+    total_tokens: Math.max(0, Number(usage.total_tokens ?? usage.totalTokens) || 0)
+  };
+}
+
+function normalizeContextUsage(contextUsage = null) {
+  if (!contextUsage || typeof contextUsage !== "object") {
+    return null;
+  }
+
+  return {
+    usage: normalizeUsage(contextUsage.usage),
+    model: String(contextUsage.model || "").slice(0, 160),
+    promptTokens: Math.max(0, Number(contextUsage.promptTokens) || 0),
+    completionTokens: Math.max(0, Number(contextUsage.completionTokens) || 0),
+    totalTokens: Math.max(0, Number(contextUsage.totalTokens) || 0),
+    limitTokens: Math.max(0, Number(contextUsage.limitTokens) || 0),
+    ratio: Math.min(1, Math.max(0, Number(contextUsage.ratio) || 0)),
+    updatedAt: Math.max(0, Number(contextUsage.updatedAt) || 0)
   };
 }
 
@@ -245,6 +276,8 @@ async function patchTabConversationMessage(tabId, replyId, patch = {}) {
     url: currentUrl,
     chatVisible: true,
     chatHoldExpanded: true,
+    usage: patch.usage || existing?.usage || null,
+    contextUsage: patch.contextUsage || existing?.contextUsage || null,
     messages
   });
 }
@@ -1241,7 +1274,9 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
       requestId: message.requestId || "",
       replyId: message.replyId,
       text,
-      pending: Boolean(patch.pending)
+      pending: Boolean(patch.pending),
+      usage: patch.usage || null,
+      model: patch.model || ""
     });
   }
 
@@ -1280,7 +1315,9 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
         if (disconnected) {
           persistDetachedReply(message, {
             text: latestText || t("llm.empty"),
-            pending: false
+            pending: false,
+            usage: result?.usage || null,
+            model: result?.model || ""
           }).catch(() => null);
           return;
         }

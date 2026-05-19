@@ -10,7 +10,10 @@
   const MAX_HOVER_MESSAGES = CONTENT_CONFIG.maxHoverMessages || 24;
   const MOUNT_WATCHDOG_INTERVAL = CONTENT_CONFIG.mountWatchdogIntervalMs || 1000;
   const POSITION_KEY = `${CONTENT_CONFIG.positionKeyPrefix || "dogeclaw-position:"}${location.host}`;
-  const LLM_DEFAULT_CONFIG = globalThis.DogeclawConfig?.llm?.defaultConfig || {};
+  const LLM_CONFIG = globalThis.DogeclawConfig?.llm || {};
+  const LLM_DEFAULT_CONFIG = LLM_CONFIG.defaultConfig || {};
+  const LLM_CONTEXT_WINDOW_DEFAULT = LLM_CONFIG.contextWindowDefault || 32000;
+  const LLM_CONTEXT_WINDOWS = LLM_CONFIG.contextWindows || {};
   const PLATFORM = globalThis.DogeclawPlatform || {};
   const FLOATING_BUTTON_COMPACT_WIDTH = 132;
   const FLOATING_BUTTON_EDGE_PADDING = 8;
@@ -128,7 +131,17 @@
       login: null,
       config: null
     },
-    thinkingActive: false
+    thinkingActive: false,
+    contextUsage: {
+      usage: null,
+      model: "",
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      limitTokens: 0,
+      ratio: 0,
+      updatedAt: 0
+    }
   };
   state.pageConversationId = getPageConversationId();
   let tabHistorySaveTimer = 0;
@@ -260,6 +273,7 @@
     state.hoverMessages = restoredMessages;
     state.chatVisible = Boolean(response.conversation.chatVisible);
     state.chatHoldExpanded = Boolean(response.conversation.chatHoldExpanded);
+    restoreContextUsage(response.conversation);
     return true;
   }
 
@@ -270,6 +284,8 @@
       pageConversationId: state.pageConversationId,
       chatVisible: state.chatVisible,
       chatHoldExpanded: state.chatHoldExpanded,
+      usage: state.contextUsage.usage || null,
+      contextUsage: state.contextUsage.promptTokens ? state.contextUsage : null,
       savedAt: Date.now(),
       messages: serializeHoverMessages()
     };
@@ -503,23 +519,177 @@
     setFloatingButtonVisible(response?.ok ? response.enabled : true);
   }
 
+  function normalizeModelKey(model) {
+    return String(model || "").trim().toLowerCase();
+  }
+
+  function getContextWindowLimit(model) {
+    const raw = normalizeModelKey(model || state.llmConfig.values.model || LLM_DEFAULT_CONFIG.model);
+    const candidates = [
+      raw,
+      raw.replace(/^openai\//, ""),
+      raw.replace(/^deepseek\//, ""),
+      raw.replace(/^gemini\//, ""),
+      raw.split("/").pop()
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const value = Number(LLM_CONTEXT_WINDOWS[candidate]);
+      if (Number.isFinite(value) && value > 0) {
+        return value;
+      }
+    }
+
+    return Number(LLM_CONTEXT_WINDOW_DEFAULT) || 32000;
+  }
+
+  function getUsageNumber(usage, names) {
+    for (const name of names) {
+      const value = Number(usage?.[name]);
+      if (Number.isFinite(value) && value >= 0) {
+        return value;
+      }
+    }
+    return 0;
+  }
+
+  function normalizeUsage(usage = null) {
+    if (!usage || typeof usage !== "object") {
+      return null;
+    }
+
+    const completionTokens = getUsageNumber(usage, ["completion_tokens", "completionTokens", "output_tokens", "outputTokens"]);
+    const totalTokens = getUsageNumber(usage, ["total_tokens", "totalTokens"]);
+    let promptTokens = getUsageNumber(usage, ["prompt_tokens", "promptTokens", "input_tokens", "inputTokens"]);
+    if (!promptTokens && totalTokens && completionTokens) {
+      promptTokens = Math.max(0, totalTokens - completionTokens);
+    }
+
+    if (!promptTokens && !completionTokens && !totalTokens) {
+      return null;
+    }
+
+    return {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: totalTokens || promptTokens + completionTokens
+    };
+  }
+
+  function formatTokenCount(value) {
+    const count = Number(value) || 0;
+    if (count >= 1000000) {
+      return `${(count / 1000000).toFixed(count >= 10000000 ? 0 : 1)}M`;
+    }
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+    }
+    return String(Math.round(count));
+  }
+
+  function applyContextUsage(usage, options = {}) {
+    const normalized = normalizeUsage(usage);
+    if (!normalized?.prompt_tokens) {
+      return false;
+    }
+
+    const model = String(options.model || state.llmConfig.values.model || LLM_DEFAULT_CONFIG.model || "").trim();
+    const limitTokens = getContextWindowLimit(model);
+    const ratio = Math.min(1, normalized.prompt_tokens / Math.max(1, limitTokens));
+    state.contextUsage = {
+      usage: normalized,
+      model,
+      promptTokens: normalized.prompt_tokens,
+      completionTokens: normalized.completion_tokens,
+      totalTokens: normalized.total_tokens,
+      limitTokens,
+      ratio,
+      updatedAt: Date.now()
+    };
+    scheduleSync();
+    scheduleTabConversationPersist();
+    return true;
+  }
+
+  function restoreContextUsage(conversation = {}) {
+    if (applyContextUsage(conversation.usage, { model: conversation.contextUsage?.model || state.llmConfig.values.model })) {
+      return true;
+    }
+
+    const contextUsage = conversation.contextUsage || {};
+    if (!contextUsage.promptTokens || !contextUsage.limitTokens) {
+      return false;
+    }
+
+    state.contextUsage = {
+      usage: normalizeUsage(contextUsage.usage),
+      model: String(contextUsage.model || ""),
+      promptTokens: Number(contextUsage.promptTokens) || 0,
+      completionTokens: Number(contextUsage.completionTokens) || 0,
+      totalTokens: Number(contextUsage.totalTokens) || 0,
+      limitTokens: Number(contextUsage.limitTokens) || getContextWindowLimit(contextUsage.model),
+      ratio: Math.min(1, Math.max(0, Number(contextUsage.ratio) || 0)),
+      updatedAt: Number(contextUsage.updatedAt) || Date.now()
+    };
+    return true;
+  }
+
+  function getContextUsageTitle() {
+    const usage = state.contextUsage;
+    if (!usage.promptTokens || !usage.limitTokens) {
+      return "";
+    }
+
+    return t("chat.contextUsage", {
+      percent: Math.round(usage.ratio * 100),
+      used: formatTokenCount(usage.promptTokens),
+      limit: formatTokenCount(usage.limitTokens)
+    });
+  }
+
+  function setNativeTooltip(element, text) {
+    if (!element) {
+      return;
+    }
+
+    const value = String(text || "").trim();
+    if (value) {
+      element.setAttribute("title", value);
+    } else {
+      element.removeAttribute("title");
+    }
+  }
+
+  function setButtonStatusTooltip(text) {
+    setNativeTooltip(elements.buttonStatus, text);
+    setNativeTooltip(elements.buttonStatusDot, text);
+  }
+
   function syncUI() {
     const canStop = Boolean(state.thinkingActive && activeReplyStop);
+    const contextKnown = !state.thinkingActive && state.contextUsage.promptTokens > 0 && state.contextUsage.limitTokens > 0;
+    const dragTitle = t("chat.dragHint");
+    const statusTitle = canStop ? t("chat.stopGenerating") : contextKnown ? getContextUsageTitle() : "";
+    setNativeTooltip(elements.button, dragTitle);
+    setNativeTooltip(elements.buttonIconWrap, dragTitle);
+    setButtonStatusTooltip(statusTitle);
     elements.button.classList.toggle("is-open", false);
 	    elements.button.classList.toggle("is-dragging", state.drag.active && state.drag.moved);
 	    elements.button.classList.toggle("is-thinking", state.thinkingActive);
     elements.button.classList.toggle("is-stoppable", canStop);
+    elements.button.classList.toggle("has-context-usage", contextKnown);
 	    elements.button.classList.toggle("is-chat-holding", state.chatHoldExpanded);
 	    elements.button.classList.toggle("supports-input-image", state.llmConfig.imageInputSupported === true);
 	    elements.button.classList.toggle("has-input-image", state.llmConfig.imageInputSupported === true && state.inputImages.length > 0);
+    elements.button.style.setProperty("--pig-context-ratio", `${Math.round(state.contextUsage.ratio * 100)}%`);
     elements.buttonStatus.tabIndex = canStop ? 0 : -1;
     elements.buttonStatus.setAttribute("role", canStop ? "button" : "presentation");
     if (canStop) {
       elements.buttonStatus.setAttribute("aria-label", t("chat.stopGenerating"));
-      elements.buttonStatus.title = t("chat.stopGenerating");
+      elements.buttonStatus.removeAttribute("data-tooltip");
     } else {
       elements.buttonStatus.removeAttribute("aria-label");
-      elements.buttonStatus.title = "";
+      elements.buttonStatus.removeAttribute("data-tooltip");
     }
     renderInputImageDragState();
 	    if (!elements.hoverMessages.hidden) {
@@ -865,6 +1035,9 @@
       apiKey: "",
       model: config.model || LLM_DEFAULT_CONFIG.model || "gpt-4o-mini"
     };
+    if (state.contextUsage.usage) {
+      applyContextUsage(state.contextUsage.usage, { model: state.llmConfig.values.model });
+    }
     applyLlmCapabilities(config);
     return state.llmConfig.providerConfigured;
   }
@@ -1503,6 +1676,7 @@
       return false;
     }
 
+    applyContextUsage(payload.usage, { model: payload.model });
     const existing = state.hoverMessages.find((message) => message.id === replyId);
     state.chatVisible = true;
     state.chatHoldExpanded = true;
@@ -1705,6 +1879,7 @@
         }
 
         if (payload?.type === "done") {
+          applyContextUsage(payload.result?.usage, { model: payload.result?.model });
           finish();
           return;
         }
@@ -2491,6 +2666,7 @@
     const button = document.createElement("div");
     button.className = "pig-floating-button";
     button.style.setProperty("--pig-chat-button-gap", `${CHAT_MESSAGES_BUTTON_GAP}px`);
+    button.title = t("chat.dragHint");
 
     const buttonAura = document.createElement("span");
     buttonAura.className = "pig-fab-aura";
@@ -2734,18 +2910,21 @@
 
     const buttonInputShell = document.createElement("span");
     buttonInputShell.className = "pig-hover-input-shell";
+    buttonInputShell.title = "";
 
-	    const buttonHoverInput = document.createElement("input");
-	    buttonHoverInput.type = "text";
+		    const buttonHoverInput = document.createElement("input");
+		    buttonHoverInput.type = "text";
     buttonHoverInput.className = "pig-hover-input";
     buttonHoverInput.placeholder = t("chat.inputPlaceholder");
     buttonHoverInput.setAttribute("aria-label", t("chat.inputAria"));
     buttonHoverInput.autocomplete = "off";
+    buttonHoverInput.title = "";
     buttonInputShell.append(inputImageButton, inputImageChip, buttonHoverInput, inputImageFile);
 
     const hoverMessages = document.createElement("div");
     hoverMessages.className = "pig-chat-messages";
     hoverMessages.hidden = true;
+    hoverMessages.title = "";
 
 	    buttonStatus.append(buttonStatusDot);
 	    buttonCopy.append(buttonInputShell);
@@ -2824,9 +3003,11 @@
       root,
 	      button,
       buttonLabel: null,
+      buttonIconWrap,
       buttonInputShell,
 	      buttonHoverInput,
       buttonStatus,
+      buttonStatusDot,
       inputImageButton,
       inputImageFile,
       inputImageChip,

@@ -69,6 +69,11 @@
         will-change: top;
       }
 
+      .pig-floating-button.is-thinking:hover,
+      .pig-floating-button.is-thinking:focus-within {
+        animation-play-state: paused;
+      }
+
       .pig-floating-button:hover,
       .pig-floating-button:focus-within,
       .pig-floating-button.is-thinking,
@@ -808,6 +813,11 @@
         cursor: pointer;
       }
 
+      .pig-floating-button.has-context-usage:not(.is-thinking) .pig-button-status {
+        pointer-events: auto;
+        cursor: help;
+      }
+
       #${rootId} .pig-input-image-file {
         display: none !important;
       }
@@ -1045,6 +1055,17 @@
         background: #94a3b8;
         box-shadow: 0 0 10px rgba(148, 163, 184, 0.38);
         transition: width 120ms ease, height 120ms ease, border-radius 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+      }
+
+      .pig-floating-button.has-context-usage:not(.is-thinking) .pig-status-dot {
+        background:
+          conic-gradient(
+            rgba(255, 255, 255, 0.96) 0 var(--pig-context-ratio, 0%),
+            #94a3b8 var(--pig-context-ratio, 0%) 100%
+          );
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+          0 0 10px rgba(148, 163, 184, 0.42);
       }
 
       .pig-floating-button.is-thinking .pig-status-dot {
