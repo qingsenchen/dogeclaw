@@ -5,7 +5,7 @@
 <h1 align="center">dogeclaw</h1>
 
 <p align="center">
-  Chrome 向けの browser-side agent として、site-specific tools、ページ内チャット、自動化を提供します。
+  Chrome にそのまま読み込める browser-side AI agent。ページ内チャット、ツール呼び出し、ブラウザ操作、スクリーンショット、任意の WeChat メッセージ連携を Web ページに持ち込みます。
 </p>
 
 <p align="center">
@@ -15,31 +15,13 @@
 </p>
 
 <p align="center">
-  <a href="#features">Features</a>
-  · <a href="#demo">Demo</a>
-  · <a href="#why-dogeclaw">Why dogeclaw?</a>
+  <a href="#demo">Demo</a>
+  · <a href="#highlights">Highlights</a>
+  · <a href="#features">Features</a>
   · <a href="#quick-start">Quick Start</a>
   · <a href="#configuration">Configuration</a>
-  · <a href="#usage">Usage</a>
-  · <a href="#privacy-and-permissions">Privacy</a>
   · <a href="#development">Development</a>
 </p>
-
-## Overview
-
-dogeclaw は、Chrome Manifest V3 ベースのブラウザ AI アシスタント拡張機能です。Web ページにドラッグ可能なフローティングペットを追加し、ページ内チャット、OpenAI-compatible LLM Provider、ツール呼び出し、ブラウザ操作、選択テキストの送信、任意の WeChat チャンネル連携をサポートします。
-
-このプロジェクトは、ローカルで unpacked extension として読み込んで使うことを想定しています。API Key は同梱していません。
-
-## Why dogeclaw?
-
-dogeclaw は browser-side agent を目指しています。株式取引サイト、EC 管理画面、分析ダッシュボード、業務システムなど、多くの専門的な Web サイトは、ページ構造やドメイン固有のワークフローが大きく異なります。そのため、汎用的なページ理解だけで純粋な AI 操作にすべてを任せると、安定してタスクを完了することが難しくなります。
-
-dogeclaw の方針は、サイトやワークフローごとにカスタム tool call を用意することです。AI にピクセルや DOM snapshot からすべての操作を推測させるのではなく、対象サイトの振る舞いを理解した browser-side tool を提供します。これにより、汎用ブラウザ自動化だけでは難しい機能も、より安定して実行できます。
-
-openclaw と比べると、dogeclaw は設定を減らし、ブラウザへ直接読み込んで使いやすい形を重視しています。ただし、dogeclaw は openclaw を置き換えるものではありません。目標は openclaw の有力な補助役になることです。今後は A2A protocol を通じて openclaw と連携し、openclaw がより広い agent orchestration を担い、dogeclaw が専門サイト上の browser-side action や site-specific tools を担当する形を目指します。
-
-つまり、dogeclaw と openclaw は補完関係にあります。dogeclaw は実用的な browser-side agent 能力、特に汎用 AI 操作だけでは完了しにくい専門サイト向けのカスタム tool call に注力します。
 
 ## Demo
 
@@ -47,17 +29,41 @@ openclaw と比べると、dogeclaw は設定を減らし、ブラウザへ直�
   <img src="docs/demo.gif" alt="dogeclaw demo" width="720">
 </p>
 
+## What Is It?
+
+dogeclaw は、ローカルファーストのブラウザ AI アシスタントです。Chrome の unpacked extension として動作し、Web ページにドラッグ可能なフローティングペットを追加し、ページ内チャットパネルを開き、browser-side tool を呼び出し、設定した OpenAI-compatible Chat Completions プロバイダーと連携します。
+
+別のデスクトップアプリを立ち上げず、リポジトリに API Key を含めず、実際の Web ページ上で browser-side agent を素早く検証したい開発者やチーム向けです。
+
+## Highlights
+
+- **Agent がブラウザの中で動く**: 現在のページとチャットし、インタラクティブ要素を読み取り、クリック、入力、スクロール、遷移、タブ作成、スクリーンショット取得まで 1 つの拡張機能で扱えます。
+- **site-specific tools を重視**: 業務システム、管理画面、分析ダッシュボード、金融ツールには固有の流れがあります。dogeclaw は汎用的な視覚自動化だけに頼らず、対象サイトに合わせた focused tool call を作る方向を取ります。
+- **ローカルで簡単に開始**: Chrome の Developer mode でリポジトリを読み込み、自分の OpenAI-compatible プロバイダーを設定すればすぐに試せます。
+- **メッセージチャンネルに対応しやすい構成**: 任意の WeChat チャンネルでは、QR ログイン、long polling、メッセージ処理、メディア処理、モデルによる返信をサポートします。
+- **openclaw と補完関係**: dogeclaw はブラウザ側の action とサイト固有ツールに集中します。将来的な A2A 連携では、openclaw が広い agent orchestration を担い、dogeclaw がページ上の実行を担当できます。
+
 ## Features
 
-- Web ページ上に表示される、ドラッグ可能なデスクトップペット風アシスタント
-- Chrome 拡張機能アイコンからページ単位で有効化・無効化
-- ストリーミング LLM 応答に対応したページ内チャット UI
-- OpenAI-compatible モデルプロバイダー設定
-- ツール呼び出しとブラウザ制御に対応した agent loop
+- 対応 Web ページ上のドラッグ可能なフローティングアシスタント
+- ストリーミング応答に対応したページ内チャット UI
+- OpenAI-compatible プロバイダー設定: Base URL、Model、API Key、System Prompt
+- Agent loop と tool calling
+- ブラウザ制御ツール: current tab、list tabs、new tab、navigate、snapshot、screenshot、click、type、scroll、back、forward、reload
+- 選択テキストをアシスタントへ送る右クリックメニュー
+- チャット内に表示できるスクリーンショット artifact
 - 天気検索ツール
-- 選択テキストを dogeclaw に送る右クリックメニュー
-- 任意の WeChat チャンネルログイン、ポーリング、メッセージ処理、メディア対応
-- English、簡体中文、日本語のローカライズを内蔵
+- 任意の WeChat QR ログイン、long polling、メッセージ処理、メディア対応
+- English、简体中文、日本語のローカライズ
+- Chrome、Edge、Firefox の build target
+
+## Good Fits
+
+- 任意の Web ページで選択テキストを要約、翻訳、書き換え
+- 読んでいるページから離れず、その場で質問
+- ダッシュボード、業務バックオフィス、EC 管理画面、金融ツールなど専門サイト向け browser agent のプロトタイプ作成
+- pixel や DOM 推論だけに頼らず、site-specific tool call で自動化を安定させる
+- ブラウザ側の action を WeChat など外部メッセージチャンネルにつなぐ
 
 ## Quick Start
 
@@ -65,126 +71,70 @@ openclaw と比べると、dogeclaw は設定を減らし、ブラウザへ直�
 2. Chrome で `chrome://extensions/` を開きます。
 3. Developer mode を有効にします。
 4. Load unpacked をクリックします。
-5. プロジェクトディレクトリを選択します。
+5. リポジトリのルートディレクトリを選択します。
 6. 任意の Web ページを開く、または更新します。右下に dogeclaw のフローティングボタンが表示されます。
 
-拡張機能のファイルを変更した後は、`chrome://extensions/` の拡張機能カードで Reload をクリックし、対象ページを更新してください。
+拡張機能ファイルを変更した後は、`chrome://extensions/` の拡張機能カードで Reload をクリックし、テスト中のページを更新してください。
 
 ## Configuration
 
-### LLM Provider
+dogeclaw には API Key は含まれていません。チャットや agent tool を使う前に、フローティングパネルを開き、自分の OpenAI-compatible プロバイダーを設定してください。
 
-dogeclaw は OpenAI-compatible Chat Completions API を使用します。チャット機能を使う前に、自分のプロバイダーを設定してください。
+| Field | Example |
+| --- | --- |
+| Base URL | `https://api.openai.com/v1` |
+| Model | `gpt-4o-mini` |
+| API Key | 利用するプロバイダーの Key |
 
-dogeclaw のフローティングパネルを開き、LLM Provider 設定画面で以下を入力します。
+API Key は Chrome extension storage に保存されます。OpenAI、DashScope-compatible gateway、DeepSeek-compatible gateway、OpenRouter-style gateway、または OpenAI-compatible Chat Completions API を提供するその他のサービスを利用できます。
 
-- Base URL、例: `https://api.openai.com/v1`
-- Model、例: `gpt-4o-mini`
-- 利用するプロバイダーの API Key
+### Optional WeChat Channel
 
-`model` と `apiBase` は、OpenAI、DashScope-compatible gateway、DeepSeek-compatible gateway、その他の OpenAI-compatible サービスに置き換えられます。
+フローティングパネルからチャンネル設定画面を開き、QR ログインを開始して設定完了を待ちます。有効化すると、dogeclaw は WeChat チャンネルのメッセージをポーリングし、受信内容を処理し、設定済みの LLM Provider で返信できます。
 
-### Debug Logging
+## Privacy And Permissions
 
-LLM debug logging はデフォルトで無効です。`config.js` で有効にすると、リクエストとレスポンスのペイロードがブラウザコンソールに出力される場合があります。プライベートなページ内容や機密性の高い prompt を扱うときは、有効化を避けてください。
+dogeclaw はローカルのブラウザ拡張機能として動作しますが、アシスタントへ送信した内容は、設定したモデルプロバイダーへ送られる場合があります。これには入力プロンプト、選択テキスト、ページコンテキスト、スクリーンショット、ツール結果、WeChat チャンネル内容が含まれます。
 
-## Usage
+要求する extension permissions:
 
-### dogeclaw を開く・切り替える
+| Permission | Purpose |
+| --- | --- |
+| `activeTab` | 現在アクティブなページとやり取りする |
+| `scripting` | アシスタント用スクリプトを注入する |
+| `storage` | ローカルのモデル設定とチャンネル設定を保存する |
+| `alarms` | ポーリングタスクをスケジュールする |
+| `tabs` | タブ状態とブラウザ操作を調整する |
+| `contextMenus` | 選択テキスト用の右クリックメニューを追加する |
+| `<all_urls>` | Web ページ上でアシスタントを読み込む |
 
-Chrome ツールバーの dogeclaw アイコンをクリックすると、現在のページでフローティングアシスタントを有効化または無効化できます。インストール後や再読み込み後に表示されない場合は、対象ページを更新してください。
+プライベートなページや機密情報を送る前に、利用するモデルプロバイダーのデータポリシーを確認してください。
 
-### モデルプロバイダーを設定する
+## Project Layout
 
-フローティングパネルを開き、LLM Provider 設定画面で Base URL、モデル名、API Key を保存します。API Key は Chrome 拡張機能のローカルストレージに保存され、このリポジトリにはコミットされません。
-
-### ページ上でチャットする
-
-フローティングペットをクリックするとチャットパネルが開きます。質問、ページ内容の要約、ブラウザ操作の依頼、対応ツールの利用ができます。設定したプロバイダーが streaming に対応している場合、応答はパネルに逐次表示されます。
-
-### 選択テキストを送る
-
-任意の Web ページでテキストを選択し、右クリックメニューから dogeclaw の項目を選ぶと、選択内容をアシスタント入力欄に送れます。要約、翻訳、書き換え、特定箇所への追加質問に便利です。
-
-### ブラウザ操作とツール
-
-dogeclaw は天気検索やブラウザ制御ヘルパーなどの対応ツールを呼び出せます。ブラウザ操作はユーザー指示に基づく自動化として扱い、プライベートなページや機密情報を含む内容を送る前に確認してください。
-
-### WeChat チャンネル
-
-WeChat チャンネルを有効にする場合は、フローティングパネルからチャンネル設定画面を開き、ログインフローに従って設定します。設定後、dogeclaw はチャンネルをポーリングし、受信メッセージを処理し、設定済みの LLM Provider を使って返信できます。
-
-### Troubleshooting
-
-- ローカルファイルを変更した後は、`chrome://extensions/` で拡張機能を Reload してください。
-- 拡張機能を Reload した後は、対象ページを更新してください。
-- チャット応答に失敗する場合は、LLM Provider 設定画面を開き、Base URL、モデル名、API Key が正しいか確認してください。
-- 開発時のエラーは、拡張機能の Service Worker console で確認できます。
-
-## Privacy and Permissions
-
-dogeclaw は以下の Chrome 拡張機能 permissions を要求します。
-
-- `activeTab`: 現在アクティブなページとやり取りするため
-- `scripting`: ページへ拡張機能スクリプトを注入するため
-- `storage`: ローカル設定とチャンネル状態を保存するため
-- `alarms`: ポーリングタスクをスケジュールするため
-- `tabs`: ページ単位のアシスタント状態とブラウザ操作を調整するため
-- `contextMenus`: 選択テキスト用の右クリックメニューを追加するため
-- `<all_urls>` host access: Web ページ上でアシスタント UI を読み込むため
-
-dogeclaw に送信した内容、入力メッセージ、選択テキスト、ページコンテキスト、スクリーンショット、ツール結果などは、設定した LLM Provider に送信される場合があります。機密情報を送る前に、利用するプロバイダーのデータポリシーを確認してください。
-
-このリポジトリには API Key は含まれていません。自分の Key は Chrome 拡張機能のローカルストレージにのみ保存してください。
-
-## Project Structure
-
-```text
-.
-├── manifest.json              # Chrome local development manifest
-├── manifest/                  # Browser target-specific manifest templates
-├── scripts/build-extension.mjs # Chrome, Edge, and Firefox build script
-├── _locales/                  # Chrome WebExtension locale messages
-├── platform/
-│   └── extension-api.js       # Cross-browser extension API adapter
-├── config.js                  # Runtime defaults and storage keys
-├── i18n.js                    # Runtime localization dictionaries and helpers
-├── background.js              # Background agent routing, tools, channels
-├── background-loader.js       # Chrome/Edge Service Worker script loader
-├── content/                   # In-page assistant UI, page bridge, and styles
-├── ui.js                      # Shared UI rendering helpers
-├── pet.js                     # Floating pet animation and interaction logic
-├── llm.js                     # OpenAI-compatible LLM client
-├── agent.js                   # Agent loop and streaming orchestration
-├── tools.js                   # Tool definitions exposed to the agent
-├── browser.js                 # Browser-control helpers
-├── channels/
-│   └── wechat.js              # WeChat channel, login, polling, media handling
-├── vendor/
-│   └── qrcode-generator.js    # Third-party QR code generator, MIT licensed
-└── icons/                     # Extension icons
-```
+| Path | Purpose |
+| --- | --- |
+| `manifest.json` | Chrome development manifest |
+| `manifest/` | ブラウザ別 manifest template |
+| `content/` | ページ内アシスタント UI、browser action bridge、styles |
+| `background.js` | Service worker routing、agent calls、tools、channels |
+| `agent.js` | Agent loop と streaming orchestration |
+| `tools.js` | モデルへ公開する tool schema |
+| `browser.js` | Browser-control tool runtime |
+| `channels/wechat.js` | WeChat login、polling、messaging、media handling |
+| `llm.js` | OpenAI-compatible LLM client |
+| `platform/extension-api.js` | Chrome/Edge/Firefox API adapter |
+| `scripts/build-extension.mjs` | Chrome、Edge、Firefox build script |
 
 ## Development
 
-### Local Browser Loading
-
-Chrome と Edge の日常開発では、リポジトリのルートディレクトリを直接読み込めます。ルートの `manifest.json` は Chromium MV3 開発用 manifest です。
-
-- Chrome: `chrome://extensions/` を開き、Developer mode を有効にして Load unpacked からリポジトリルートを選択します。
-- Edge: `edge://extensions/` を開き、Developer mode を有効にして Load unpacked からリポジトリルートを選択します。
-
-ファイルを変更した後は、ブラウザの拡張機能ページで拡張機能を reload し、テスト対象ページも更新してください。
-
-Firefox は background loading の形が異なるため、生成された Firefox build を使うことを推奨します。
+JavaScript 構文チェック:
 
 ```sh
-npm run build:firefox
+npm run check
 ```
 
-その後 `about:debugging#/runtime/this-firefox` を開き、Load Temporary Add-on から `dist/firefox/manifest.json` を選択します。変更後は Firefox build を再生成し、一時アドオンを reload してください。
-
-ブラウザ別の拡張機能ディレクトリをビルドします。
+ブラウザ別の拡張機能ディレクトリを build:
 
 ```sh
 npm run build:chrome
@@ -192,41 +142,29 @@ npm run build:edge
 npm run build:firefox
 ```
 
-生成物は `dist/<target>` に出力されます。ルートの `manifest.json` は Chrome のローカル開発用として残し、生成される manifest でブラウザごとの background loading と互換性差分を分離します。
+生成物は `dist/<target>` に出力されます。Chrome と Edge の日常開発ではリポジトリルートを直接読み込めます。Firefox では生成された `dist/firefox/manifest.json` temporary add-on を読み込んでください。
 
-JavaScript 構文チェックを実行します。
+Browser API を追加する場合は、機能モジュールから `chrome.*` や `browser.*` を直接呼ばず、`platform/extension-api.js` を経由してください。これにより cross-browser compatibility を 1 つの layer に集約できます。
 
-```sh
-npm run check
-```
-
-公開前には以下のチェックを推奨します。
+公開前の推奨チェック:
 
 ```sh
 rg -n "apiKey|secret|token|password|Authorization|Bearer|sk-" .
 npm run check
 ```
 
-Browser API を追加する場合は、機能モジュールから `chrome.*` や `browser.*` を直接呼ばず、`platform/extension-api.js` を経由してください。Chrome、Edge、Firefox の互換性対応を platform layer と manifest templates に集約できます。
-
-このリポジトリでは、ローカル認証情報、ビルド成果物、ブラウザ拡張機能パッケージ、環境ファイルをコミットしない方針です。
-
 ## Contributing
 
-Contributions are welcome, especially for browser-side agent capabilities, site-specific tools, LLM provider compatibility, WeChat channel reliability, documentation, and i18n.
+browser-side agent capabilities、site-specific tools、provider compatibility、WeChat channel reliability、documentation、i18n まわりの貢献を歓迎します。
 
-Before opening a pull request:
+Pull Request を開く前に:
 
-- Fork the repository and create a focused feature branch from `main`.
-- Load the extension locally with Chrome Developer mode and test the changed workflow.
-- Run the JavaScript syntax checks listed above.
-- Run the basic secret scan listed above.
-- Update English, Simplified Chinese, and Japanese i18n strings when changing user-visible text.
-- Do not commit API keys, tokens, cookies, local logs, `.env` files, generated extension packages, or private screenshots.
+- Chrome Developer mode で変更した workflow をテストしてください。
+- `npm run check` を実行してください。
+- API Key、token、cookie、local logs、`.env` files、生成された extension packages、private screenshots はコミットしないでください。
+- ユーザーに見える UI text を変更する場合は、English、Simplified Chinese、日本語の UI strings を同期してください。
 
-Please include a clear description, manual testing steps, affected pages or browsers, and screenshots or GIFs when the change affects UI behavior.
-
-For more details, see [CONTRIBUTING.md](CONTRIBUTING.md).
+詳細は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
 ## Third-Party Notices
 
