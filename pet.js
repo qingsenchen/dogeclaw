@@ -40,6 +40,7 @@
     SLEEPY: "sleepy",
     SHY: "shy",
     EXCITED: "excited",
+    CRYING: "crying",
     SAD: "sad",
     SURPRISED: "surprised",
     ANGRY: "angry"
@@ -79,6 +80,14 @@
       browRight: "translate(0,-.2px)",
       blush: 0.7,
       mouth: "M10 13 Q12 16 14 13"
+    },
+    crying: {
+      eyeScaleY: 0.54,
+      browLeft: "translate(.35px,.55px)",
+      browRight: "translate(-.35px,.55px)",
+      blush: 0.15,
+      tears: 0.95,
+      mouth: "M10 14 Q12 12.1 14 14"
     },
     sad: {
       eyeScaleY: 0.68,
@@ -417,6 +426,9 @@
       elements.buttonMouth.setAttribute("d", preset.mouth);
       elements.buttonBlushes.forEach((blush) => {
         blush.style.opacity = String(preset.blush);
+      });
+      elements.buttonTears?.forEach((tear) => {
+        tear.style.opacity = String(preset.tears || 0);
       });
     }
 

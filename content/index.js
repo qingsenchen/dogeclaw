@@ -32,6 +32,10 @@
   const IMAGE_FILE_EXTENSION_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i;
   const DATA_IMAGE_MARKDOWN_RE = /!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/;
   const DATA_IMAGE_MARKDOWN_PREFIX_RE = /!\[[^\]\n\r]*]\(data:image\//;
+  const SLASH_COMMAND_IDS = {
+    NEW: "new",
+    MODEL: "model"
+  };
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
 
   function isImageInputUnsupportedError(error) {
@@ -92,15 +96,20 @@
     },
 	    hoverUserScrolled: false,
 	    hoverScrollToBottomRequested: false,
-	    hoverScrollDrag: {
-	      active: false,
-	      moved: false,
-	      suppressClick: false,
-	      pointerId: null,
-	      startY: 0,
-	      startScrollTop: 0
-	    },
-	    chatVisible: false,
+    hoverScrollDrag: {
+      active: false,
+      moved: false,
+      suppressClick: false,
+      pointerId: null,
+      startY: 0,
+      startScrollTop: 0
+    },
+    commandMenu: {
+      visible: false,
+      query: "",
+      activeIndex: 0
+    },
+    chatVisible: false,
 	    chatHideTimer: 0,
 	    chatCollapseTimer: 0,
 	    chatHoldExpanded: false,
@@ -167,6 +176,26 @@
 
     state.pageConversationId = nextId;
     return true;
+  }
+
+  function getSlashCommands() {
+    return [
+      {
+        id: SLASH_COMMAND_IDS.NEW,
+        name: "/new",
+        description: t("command.new.description")
+      },
+      {
+        id: SLASH_COMMAND_IDS.MODEL,
+        name: "/model",
+        description: t("command.model.description")
+      }
+    ];
+  }
+
+  function getVisibleSlashCommands() {
+    const query = String(state.commandMenu.query || "").toLowerCase();
+    return getSlashCommands().filter((command) => command.name.slice(1).startsWith(query));
   }
 
   const browserActions = globalThis.DogeclawContentBrowserActions?.createController?.();
@@ -587,6 +616,19 @@
     return String(Math.round(count));
   }
 
+  function resetContextUsage() {
+    state.contextUsage = {
+      usage: null,
+      model: "",
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      limitTokens: 0,
+      ratio: 0,
+      updatedAt: 0
+    };
+  }
+
   function applyContextUsage(usage, options = {}) {
     const normalized = normalizeUsage(usage);
     if (!normalized?.prompt_tokens) {
@@ -963,6 +1005,12 @@
       return;
     }
 
+    if (event?.type === "focusout" && state.commandMenu.visible) {
+      hideSlashCommandMenu();
+    } else if (state.commandMenu.visible) {
+      return;
+    }
+
     if (state.thinkingActive || state.hoverMessages.some((message) => message.pending)) {
       setChatVisible(true);
       return;
@@ -1265,6 +1313,189 @@
     return true;
   }
 
+  function hideSlashCommandMenu(options = {}) {
+    if (!state.commandMenu.visible && !state.commandMenu.query && state.commandMenu.activeIndex === 0) {
+      return false;
+    }
+
+    state.commandMenu.visible = false;
+    state.commandMenu.query = "";
+    state.commandMenu.activeIndex = 0;
+    if (options.render !== false) {
+      renderHoverMessages();
+      scheduleSync();
+    }
+    return true;
+  }
+
+  function updateSlashCommandMenuFromInput(value) {
+    const text = String(value || "");
+    if (!text.startsWith("/") || /\s/.test(text)) {
+      hideSlashCommandMenu();
+      return false;
+    }
+
+    const query = text.slice(1).toLowerCase();
+    const commands = getSlashCommands().filter((command) => command.name.slice(1).startsWith(query));
+    if (!commands.length) {
+      hideSlashCommandMenu();
+      return false;
+    }
+
+    const queryChanged = state.commandMenu.query !== query;
+    state.commandMenu.visible = true;
+    state.commandMenu.query = query;
+    state.commandMenu.activeIndex = queryChanged ? 0 : Math.min(state.commandMenu.activeIndex, commands.length - 1);
+    state.chatHoldExpanded = true;
+    if (state.chatHideTimer) {
+      window.clearTimeout(state.chatHideTimer);
+      state.chatHideTimer = 0;
+    }
+    updateButtonExpansionSide();
+    renderHoverMessages();
+    scheduleSync();
+    return true;
+  }
+
+  function clearConversationInfo() {
+    if (typeof activeReplyStop === "function") {
+      activeReplyStop();
+    }
+
+    hoverTipDismissTimers.forEach((timerId) => window.clearTimeout(timerId));
+    hoverTipDismissTimers.clear();
+    stopChannelAutoCheck();
+    closeConfigPanel();
+    state.hoverMessages = [];
+    state.inputImages = [];
+    state.hoverUserScrolled = false;
+    state.hoverScrollToBottomRequested = false;
+    state.chatVisible = false;
+    state.chatHoldExpanded = true;
+    resetContextUsage();
+    setThinkingStatus("");
+    renderInputImageState();
+    renderHoverMessages();
+    void persistTabConversationNow();
+    scheduleSync();
+  }
+
+  async function executeSlashCommand(commandId) {
+    hideSlashCommandMenu({ render: false });
+    if (elements.buttonHoverInput) {
+      elements.buttonHoverInput.value = "";
+    }
+    state.inputImages = [];
+    renderInputImageState();
+
+    if (commandId === SLASH_COMMAND_IDS.NEW) {
+      clearConversationInfo();
+      window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
+      return true;
+    }
+
+    if (commandId === SLASH_COMMAND_IDS.MODEL) {
+      await showLlmProviderConfigForm();
+      return true;
+    }
+
+    renderHoverMessages();
+    scheduleSync();
+    return false;
+  }
+
+  function handleSlashCommandKeydown(event) {
+    if (event.isComposing) {
+      return false;
+    }
+
+    if (event.key === "Escape" && state.commandMenu.visible) {
+      event.preventDefault();
+      event.stopPropagation();
+      hideSlashCommandMenu();
+      return true;
+    }
+
+    if (!state.commandMenu.visible) {
+      return false;
+    }
+
+    const commands = getVisibleSlashCommands();
+    if (!commands.length) {
+      hideSlashCommandMenu();
+      return false;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      state.commandMenu.activeIndex = (state.commandMenu.activeIndex + direction + commands.length) % commands.length;
+      renderHoverMessages();
+      return true;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      const command = commands[state.commandMenu.activeIndex] || commands[0];
+      void executeSlashCommand(command.id);
+      return true;
+    }
+
+    return false;
+  }
+
+  function handleHoverInputChange(event) {
+    updateSlashCommandMenuFromInput(event.currentTarget?.value || "");
+  }
+
+  function handleHoverInputFocus(event) {
+    updateSlashCommandMenuFromInput(event.currentTarget?.value || "");
+  }
+
+  function renderSlashCommandMenu() {
+    const commands = getVisibleSlashCommands();
+    const row = document.createElement("div");
+    row.className = "pig-chat-row is-tip is-command-menu";
+
+    const menu = document.createElement("div");
+    menu.className = "pig-chat-bubble pig-tip-message pig-command-menu";
+    menu.setAttribute("role", "listbox");
+    menu.setAttribute("aria-label", t("command.menuAria"));
+
+    commands.forEach((command, index) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `pig-command-item${index === state.commandMenu.activeIndex ? " is-active" : ""}`;
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", index === state.commandMenu.activeIndex ? "true" : "false");
+      item.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+      });
+      item.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        state.commandMenu.activeIndex = index;
+        void executeSlashCommand(command.id);
+      });
+
+      const name = document.createElement("span");
+      name.className = "pig-command-name";
+      name.textContent = command.name;
+
+      const description = document.createElement("span");
+      description.className = "pig-command-description";
+      description.textContent = command.description;
+
+      item.append(name, description);
+      menu.append(item);
+    });
+
+    row.append(menu);
+    return row;
+  }
+
   function renderHoverMessages() {
     if (!elements?.hoverMessages) {
       return;
@@ -1273,7 +1504,9 @@
     const scrollSnapshot = getHoverMessagesScrollSnapshot();
     elements.hoverMessages.replaceChildren();
     let componentRow = null;
-    if (state.llmConfig.visible) {
+    if (state.commandMenu.visible) {
+      componentRow = renderSlashCommandMenu();
+    } else if (state.llmConfig.visible) {
       componentRow = window.DogeclawUI.renderLlmConfigForm({
         state,
         onSave: saveLlmConfig
@@ -1296,28 +1529,34 @@
       : -1;
     let componentInserted = false;
 
-    state.hoverMessages.forEach((message, index) => {
-      const row =
-        message.type === "tip"
-          ? window.DogeclawUI.renderTipMessage({
-              message,
-              onAction: () => handleTipAction(message),
-              onClose: () => removeHoverMessage(message.id)
-            })
-          : renderChatMessageRow(message);
-      elements.hoverMessages.append(row);
-
-      if (componentRow && index === componentAfterIndex) {
-        elements.hoverMessages.append(componentRow);
-        componentInserted = true;
-      }
-    });
-
-    if (componentRow && !componentInserted) {
+    if (state.commandMenu.visible) {
       elements.hoverMessages.append(componentRow);
+      componentInserted = true;
+    } else {
+      state.hoverMessages.forEach((message, index) => {
+        const row =
+          message.type === "tip"
+            ? window.DogeclawUI.renderTipMessage({
+                message,
+                onAction: () => handleTipAction(message),
+                onClose: () => removeHoverMessage(message.id)
+              })
+            : renderChatMessageRow(message);
+        elements.hoverMessages.append(row);
+
+        if (componentRow && index === componentAfterIndex) {
+          elements.hoverMessages.append(componentRow);
+          componentInserted = true;
+        }
+      });
+
+      if (componentRow && !componentInserted) {
+        elements.hoverMessages.append(componentRow);
+      }
     }
 
     const visible =
+      state.commandMenu.visible ||
       state.llmConfig.visible ||
       state.channelConfig.visible ||
       ((state.chatVisible || state.hoverMessages.some((message) => message.pending)) && state.hoverMessages.length > 0);
@@ -1342,6 +1581,7 @@
     state.chatCollapseTimer = window.setTimeout(() => {
       state.chatCollapseTimer = 0;
       if (
+        !state.commandMenu.visible &&
         !state.llmConfig.visible &&
         !state.channelConfig.visible &&
         !state.chatVisible &&
@@ -2538,6 +2778,10 @@
 	  }
 
   async function handleHoverInputKeydown(event) {
+    if (handleSlashCommandKeydown(event)) {
+      return;
+    }
+
     if (event.key !== "Enter" || event.isComposing) {
       return;
     }
@@ -2702,6 +2946,18 @@
     const blushRight = svgElement("rect", { x: 16, y: 12, width: 2, height: 2, fill: "#ff8ea1", class: "pig-blush pig-blush-right" });
     const browLeft = svgElement("rect", { x: 8, y: 7, width: 3, height: 1, fill: "#8a4b11", opacity: ".35", class: "pig-brow pig-brow-left" });
     const browRight = svgElement("rect", { x: 14, y: 7, width: 3, height: 1, fill: "#8a4b11", opacity: ".35", class: "pig-brow pig-brow-right" });
+    const tearLeft = svgElement("g", { class: "pig-tear pig-tear-left", opacity: 0 });
+    tearLeft.append(
+      svgElement("rect", { x: 8, y: 11, width: 1, height: 4, fill: "#5bbcff" }),
+      svgElement("rect", { x: 9, y: 13, width: 1, height: 3, fill: "#8fd8ff" }),
+      svgElement("rect", { x: 8, y: 16, width: 2, height: 1, fill: "#5bbcff" })
+    );
+    const tearRight = svgElement("g", { class: "pig-tear pig-tear-right", opacity: 0 });
+    tearRight.append(
+      svgElement("rect", { x: 16, y: 11, width: 1, height: 4, fill: "#5bbcff" }),
+      svgElement("rect", { x: 15, y: 13, width: 1, height: 3, fill: "#8fd8ff" }),
+      svgElement("rect", { x: 15, y: 16, width: 2, height: 1, fill: "#5bbcff" })
+    );
 
     const leftEye = svgElement("g", { class: "pig-eye pig-eye-left" });
     const leftPupil = svgElement("rect", { x: 9, y: 9, width: 1, height: 1, fill: "#000", class: "pig-pupil pig-pupil-left" });
@@ -2749,6 +3005,8 @@
       browRight,
       leftEye,
       rightEye,
+      tearLeft,
+      tearRight,
       nose,
       mouth,
       tongue
@@ -2990,6 +3248,8 @@
       clearInputImages();
       window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
 	    });
+	    buttonHoverInput.addEventListener("input", handleHoverInputChange);
+	    buttonHoverInput.addEventListener("focus", handleHoverInputFocus);
 	    buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
     document.addEventListener("dragenter", handleDocumentImageDragEnter, true);
     document.addEventListener("dragstart", handleDocumentImageDragStart, true);
@@ -3020,6 +3280,7 @@
       buttonMouth: mouth,
       buttonTongue: tongue,
       buttonBlushes: [blushLeft, blushRight],
+      buttonTears: [tearLeft, tearRight],
       buttonTailTip: tailTip,
       buttonEarLeft: earLeft,
       buttonEarRight: earRight,

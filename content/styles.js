@@ -204,6 +204,24 @@
         transition: opacity 140ms ease;
       }
 
+      .pig-tear {
+        transform-box: fill-box;
+        transform-origin: top center;
+        opacity: 0;
+        transition: opacity 140ms ease;
+        animation: pig-tear-flow 0.9s linear infinite;
+      }
+
+      @keyframes pig-tear-flow {
+        0%, 100% {
+          transform: translateY(0);
+        }
+
+        50% {
+          transform: translateY(0.7px);
+        }
+      }
+
       .pig-bubble-layer {
         position: absolute;
         left: 0;
@@ -290,6 +308,63 @@
 
       .pig-chat-messages.is-compact-vertical {
         gap: 6px;
+      }
+
+      .pig-chat-row.is-command-menu .pig-tip-message.pig-command-menu {
+        box-sizing: border-box;
+        display: grid;
+        gap: 4px;
+        width: fit-content;
+        min-width: min(220px, calc(100vw - 48px));
+        max-width: min(280px, calc(100vw - 48px));
+        padding: 5px;
+        border-radius: 16px;
+      }
+
+      .pig-command-item {
+        all: unset;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 28px;
+        border-radius: 12px;
+        padding: 3px 6px;
+        color: #ffffff;
+        cursor: pointer;
+      }
+
+      .pig-command-item:hover,
+      .pig-command-item:focus-visible,
+      .pig-command-item.is-active {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .pig-command-name {
+        flex: 0 0 auto;
+        min-width: 52px;
+        min-height: 24px;
+        border: 1px solid rgba(147, 197, 253, 0.36);
+        border-radius: 8px;
+        padding: 3px 8px;
+        color: #dbeafe;
+        background: rgba(96, 165, 250, 0.22);
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .pig-command-description {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: min(170px, calc(100vw - 138px));
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
       }
 
       .pig-chat-row {
