@@ -18,6 +18,7 @@
   <a href="#demo">Demo</a>
   · <a href="#highlights">Highlights</a>
   · <a href="#features">Features</a>
+  · <a href="ROADMAP.md">Roadmap</a>
   · <a href="#quick-start">Quick Start</a>
   · <a href="#configuration">Configuration</a>
   · <a href="#privacy-and-permissions">Privacy</a>
@@ -159,6 +160,8 @@ npm run check
 ## Contributing
 
 browser-side agent capabilities、site-specific tools、provider compatibility、WeChat channel reliability、documentation、i18n まわりの貢献を歓迎します。
+
+プロジェクトの方向性と貢献テーマは [ROADMAP.md](ROADMAP.md) を参照してください。
 
 Pull Request を開く前に:
 

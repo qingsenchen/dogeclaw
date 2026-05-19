@@ -18,6 +18,7 @@
   <a href="#演示">演示</a>
   · <a href="#项目亮点">亮点</a>
   · <a href="#功能">功能</a>
+  · <a href="ROADMAP.md">Roadmap</a>
   · <a href="#快速开始">快速开始</a>
   · <a href="#配置">配置</a>
   · <a href="#隐私和权限">隐私</a>
@@ -159,6 +160,8 @@ npm run check
 ## 贡献
 
 欢迎贡献，尤其是浏览器端 agent 能力、站点定制工具、模型服务兼容性、微信频道稳定性、文档和 i18n。
+
+项目方向和适合参与的主题见 [ROADMAP.md](ROADMAP.md)。
 
 提交 Pull Request 前：
 
