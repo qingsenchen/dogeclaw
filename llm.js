@@ -369,10 +369,11 @@
     return messages.slice(startIndex);
   }
 
-  function buildMessageList(config, history) {
+  function buildMessageList(config, history, runtimeSystemPrompt = "") {
     const normalized = normalizeHistory(history);
     const systemPrompts = [
       config.systemPrompt || DEFAULT_CONFIG.systemPrompt || t("system.prompt"),
+      String(runtimeSystemPrompt || "").trim(),
       ...normalized.filter((item) => item.role === "system").map((item) => item.content)
     ].filter(Boolean);
     const nonSystemMessages = normalized.filter((item) => item.role !== "system");
@@ -393,7 +394,7 @@
       : {};
   }
 
-  async function buildRequest(message, history = [], stream = false, tools = null) {
+  async function buildRequest(message, history = [], stream = false, tools = null, runtimeSystemPrompt = "") {
     const text = String(message || "").trim();
     if (!text) {
       throw new Error(t("llm.messageRequired"));
@@ -412,7 +413,7 @@
       body: {
         model: getProviderModelName(config.model),
         messages: [
-          ...buildMessageList(config, history),
+          ...buildMessageList(config, history, runtimeSystemPrompt),
           { role: "user", content: text }
         ],
         temperature: 0.7,
@@ -423,7 +424,7 @@
     };
   }
 
-  async function buildMessagesRequest(messages, stream = false, tools = null) {
+  async function buildMessagesRequest(messages, stream = false, tools = null, runtimeSystemPrompt = "") {
     const config = await getConfig();
     if (!config.apiKey) {
       throw new Error(t("llm.apiKeyNotConfigured"));
@@ -436,7 +437,7 @@
       url: `${apiBase}/chat/completions`,
       body: {
         model: getProviderModelName(config.model),
-        messages: buildMessageList(config, messages),
+        messages: buildMessageList(config, messages, runtimeSystemPrompt),
         temperature: 0.7,
         stream,
         ...getStreamOptions(stream),
@@ -467,13 +468,13 @@
     }).filter((toolCall) => toolCall.name);
   }
 
-  async function chat({ message, history = [], tools = null } = {}) {
-    const { config, url, body } = await buildRequest(message, history, false, tools);
+  async function chat({ message, history = [], tools = null, runtimeSystemPrompt = "" } = {}) {
+    const { config, url, body } = await buildRequest(message, history, false, tools, runtimeSystemPrompt);
     return completeRequest({ config, url, body });
   }
 
-  async function chatMessages({ messages = [], tools = null } = {}) {
-    const { config, url, body } = await buildMessagesRequest(messages, false, tools);
+  async function chatMessages({ messages = [], tools = null, runtimeSystemPrompt = "" } = {}) {
+    const { config, url, body } = await buildMessagesRequest(messages, false, tools, runtimeSystemPrompt);
     return completeRequest({ config, url, body });
   }
 
@@ -531,13 +532,13 @@
     return error?.name === "AbortError" || /aborted|body stream buffer/i.test(message);
   }
 
-  async function streamChat({ message, history = [], onDelta, onDone, signal } = {}) {
-    const { config, url, body } = await buildRequest(message, history, true);
+  async function streamChat({ message, history = [], runtimeSystemPrompt = "", onDelta, onDone, signal } = {}) {
+    const { config, url, body } = await buildRequest(message, history, true, null, runtimeSystemPrompt);
     return streamRequest({ config, url, body, onDelta, onDone, signal });
   }
 
-  async function streamMessages({ messages = [], tools = null, onDelta, onDone, signal } = {}) {
-    const { config, url, body } = await buildMessagesRequest(messages, true, tools);
+  async function streamMessages({ messages = [], tools = null, runtimeSystemPrompt = "", onDelta, onDone, signal } = {}) {
+    const { config, url, body } = await buildMessagesRequest(messages, true, tools, runtimeSystemPrompt);
     return streamRequest({ config, url, body, onDelta, onDone, signal });
   }
 

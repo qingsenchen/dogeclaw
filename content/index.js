@@ -756,13 +756,13 @@
     const toolName = firstCall.name || t("tool.generic");
     const args = firstCall.arguments || {};
 
-    if (toolName === "get_weather") {
-      return t("tool.weather", { location: args.location || t("tool.weatherTarget") });
-    }
-
     if (toolName === "browser_control") {
       const action = args.action ? ` ${args.action}` : "";
       return t("tool.browser", { action });
+    }
+
+    if (toolName === "curl") {
+      return t("tool.http");
     }
 
     if (toolName === "system_config") {

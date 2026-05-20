@@ -2,7 +2,9 @@
   const CONFIG = globalThis.DogeclawConfig || {};
   const PLATFORM = globalThis.DogeclawPlatform || {};
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
-  const WEATHER_TIMEOUT_MS = CONFIG.tools?.weatherTimeoutMs || 12000;
+  const CURL_TIMEOUT_MS = CONFIG.tools?.curlTimeoutMs || 30000;
+  const CURL_MAX_RESPONSE_BYTES = CONFIG.tools?.curlMaxResponseBytes || 1024 * 1024;
+  const CURL_MAX_BODY_BYTES = CONFIG.tools?.curlMaxBodyBytes || 256 * 1024;
   const CONTENT_SCRIPT_FILES = CONFIG.content?.scriptFiles || [
     "config.js",
     "pet.js",
@@ -16,17 +18,27 @@
     {
       type: "function",
       function: {
-        name: "get_weather",
-        description: "查询指定城市或地区的实时天气。当用户询问天气、温度、是否下雨、风力、湿度等信息时使用。",
+        name: "curl",
+        description:
+          "解析并执行安全的 curl HTTP 请求。用于按 skill 指令请求公开 HTTP/HTTPS JSON 或文本资源。不要用于读取本地文件、上传文件、代理或访问本机/内网地址。",
         parameters: {
           type: "object",
           properties: {
-            location: {
+            command: {
               type: "string",
-              description: "城市、地区或地点名称，例如 Beijing、上海、Tokyo。"
+              description: "curl 命令，例如 curl -sS -H 'Accept: application/json' 'https://example.com/data.json'。"
+            },
+            responseType: {
+              type: "string",
+              enum: ["auto", "json", "text"],
+              description: "响应解析方式，默认 auto。"
+            },
+            maxBytes: {
+              type: "number",
+              description: "最多返回的响应字符数，默认使用系统限制。"
             }
           },
-          required: ["location"]
+          required: ["command"]
         }
       }
     },
@@ -204,71 +216,392 @@
     }));
   }
 
-  function normalizeLocation(location) {
-    return String(location || "").trim();
-  }
+  function tokenizeCurlCommand(command) {
+    const source = String(command || "").replace(/\\\r?\n/g, " ");
+    const tokens = [];
+    let token = "";
+    let quote = "";
+    let escaped = false;
 
-  async function fetchJson(url, timeoutMs) {
-    const controller = new AbortController();
-    const timerId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/json"
-        },
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        throw new Error(t("tool.weatherFailed", { status: response.status }));
+    for (let index = 0; index < source.length; index += 1) {
+      const char = source[index];
+      if (escaped) {
+        token += char;
+        escaped = false;
+        continue;
       }
 
-      return response.json();
+      if (char === "\\" && quote !== "'") {
+        escaped = true;
+        continue;
+      }
+
+      if (quote) {
+        if (char === quote) {
+          quote = "";
+        } else {
+          token += char;
+        }
+        continue;
+      }
+
+      if (char === "'" || char === '"') {
+        quote = char;
+        continue;
+      }
+
+      if (/\s/.test(char)) {
+        if (token) {
+          tokens.push(token);
+          token = "";
+        }
+        continue;
+      }
+
+      token += char;
+    }
+
+    if (escaped) {
+      token += "\\";
+    }
+    if (quote) {
+      throw new Error(t("tool.curlUnterminatedQuote"));
+    }
+    if (token) {
+      tokens.push(token);
+    }
+    return tokens;
+  }
+
+  function getOptionValue(tokens, index, option) {
+    if (index + 1 >= tokens.length) {
+      throw new Error(t("tool.curlOptionValueRequired", { option }));
+    }
+    return {
+      value: tokens[index + 1],
+      nextIndex: index + 1
+    };
+  }
+
+  function assertSafeCurlData(value, option) {
+    const text = String(value || "");
+    if (text.startsWith("@")) {
+      throw new Error(t("tool.curlFileDataUnsupported", { option }));
+    }
+    if (text.length > CURL_MAX_BODY_BYTES) {
+      throw new Error(t("tool.curlBodyTooLarge"));
+    }
+  }
+
+  function isBlockedCurlHostname(hostname) {
+    const value = String(hostname || "").toLowerCase();
+    if (!value || value === "localhost" || value.endsWith(".localhost") || value.endsWith(".local")) {
+      return true;
+    }
+    if (value === "::1" || value === "[::1]" || value === "0.0.0.0") {
+      return true;
+    }
+
+    const ipv4 = value.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!ipv4) {
+      return false;
+    }
+
+    const octets = ipv4.slice(1).map((item) => Number(item));
+    if (octets.some((item) => item < 0 || item > 255)) {
+      return true;
+    }
+    return (
+      octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 169 && octets[1] === 254) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168)
+    );
+  }
+
+  function normalizeCurlUrl(value) {
+    let parsed;
+    try {
+      parsed = new URL(String(value || "").trim());
+    } catch {
+      throw new Error(t("tool.curlUrlInvalid"));
+    }
+
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error(t("tool.curlUnsupportedProtocol"));
+    }
+    if (isBlockedCurlHostname(parsed.hostname)) {
+      throw new Error(t("tool.curlBlockedHost", { host: parsed.hostname || "" }));
+    }
+    parsed.hash = "";
+    return parsed;
+  }
+
+  function setCurlHeader(headers, headerLine) {
+    const separatorIndex = String(headerLine || "").indexOf(":");
+    if (separatorIndex <= 0) {
+      throw new Error(t("tool.curlHeaderInvalid"));
+    }
+
+    const name = headerLine.slice(0, separatorIndex).trim();
+    const value = headerLine.slice(separatorIndex + 1).trim();
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)) {
+      throw new Error(t("tool.curlHeaderInvalid"));
+    }
+    headers[name] = value;
+  }
+
+  function appendCurlUrl(url, value) {
+    if (url) {
+      throw new Error(t("tool.curlMultipleUrls"));
+    }
+    return String(value || "").trim();
+  }
+
+  function parseCurlCommand(command) {
+    const tokens = tokenizeCurlCommand(command);
+    if (!tokens.length || tokens[0] !== "curl") {
+      throw new Error(t("tool.curlCommandInvalid"));
+    }
+
+    const headers = {};
+    const bodyParts = [];
+    let method = "";
+    let url = "";
+    let dataInQuery = false;
+    let timeoutMs = CURL_TIMEOUT_MS;
+    let followRedirect = false;
+
+    for (let index = 1; index < tokens.length; index += 1) {
+      const token = tokens[index];
+
+      if (token === "--") {
+        const next = getOptionValue(tokens, index, "--");
+        url = appendCurlUrl(url, next.value);
+        index = next.nextIndex;
+        continue;
+      }
+
+      if (!token.startsWith("-")) {
+        url = appendCurlUrl(url, token);
+        continue;
+      }
+
+      if (token === "-s" || token === "-S" || token === "-sS" || token === "--silent" || token === "--show-error" || token === "--compressed") {
+        continue;
+      }
+      if (token === "-L" || token === "--location") {
+        followRedirect = true;
+        continue;
+      }
+      if (token === "-G" || token === "--get") {
+        dataInQuery = true;
+        continue;
+      }
+      if (token === "-I" || token === "--head") {
+        method = "HEAD";
+        continue;
+      }
+
+      const longOption = token.match(/^--([^=]+)=(.*)$/);
+      const option = longOption ? `--${longOption[1]}` : token;
+      const inlineValue = longOption ? longOption[2] : "";
+      const valueFor = () => {
+        if (longOption) {
+          return { value: inlineValue, nextIndex: index };
+        }
+        return getOptionValue(tokens, index, option);
+      };
+
+      if (option === "-X" || option === "--request" || (token.startsWith("-X") && token.length > 2)) {
+        const next = token.startsWith("-X") && token.length > 2
+          ? { value: token.slice(2), nextIndex: index }
+          : valueFor();
+        method = String(next.value || "").trim().toUpperCase();
+        index = next.nextIndex;
+        continue;
+      }
+
+      if (option === "-H" || option === "--header" || (token.startsWith("-H") && token.length > 2)) {
+        const next = token.startsWith("-H") && token.length > 2
+          ? { value: token.slice(2), nextIndex: index }
+          : valueFor();
+        setCurlHeader(headers, next.value);
+        index = next.nextIndex;
+        continue;
+      }
+
+      if (option === "-d" || option === "--data" || option === "--data-raw" || option === "--data-binary" || (token.startsWith("-d") && token.length > 2)) {
+        const next = token.startsWith("-d") && token.length > 2
+          ? { value: token.slice(2), nextIndex: index }
+          : valueFor();
+        assertSafeCurlData(next.value, option);
+        bodyParts.push(String(next.value || ""));
+        index = next.nextIndex;
+        continue;
+      }
+
+      if (option === "--url") {
+        const next = valueFor();
+        url = appendCurlUrl(url, next.value);
+        index = next.nextIndex;
+        continue;
+      }
+
+      if (option === "-m" || option === "--max-time") {
+        const next = valueFor();
+        const seconds = Number(next.value);
+        if (!Number.isFinite(seconds) || seconds <= 0) {
+          throw new Error(t("tool.curlInvalidTimeout"));
+        }
+        timeoutMs = Math.min(120000, Math.max(1000, Math.round(seconds * 1000)));
+        index = next.nextIndex;
+        continue;
+      }
+
+      if (option === "-A" || option === "--user-agent") {
+        const next = valueFor();
+        headers["User-Agent"] = String(next.value || "");
+        index = next.nextIndex;
+        continue;
+      }
+
+      if (["-o", "-O", "--output", "--remote-name", "-F", "--form", "-T", "--upload-file", "--proxy", "--unix-socket", "--netrc", "--config", "-K", "--cookie-jar", "-u", "--user"].includes(option)) {
+        throw new Error(t("tool.curlUnsupportedOption", { option }));
+      }
+
+      throw new Error(t("tool.curlUnsupportedOption", { option }));
+    }
+
+    if (!url) {
+      throw new Error(t("tool.curlUrlRequired"));
+    }
+
+    const parsedUrl = normalizeCurlUrl(url);
+    if (bodyParts.length && dataInQuery) {
+      const query = bodyParts.join("&");
+      parsedUrl.search = parsedUrl.search ? `${parsedUrl.search}&${query}` : `?${query}`;
+    }
+
+    const body = bodyParts.length && !dataInQuery ? bodyParts.join("&") : "";
+    const normalizedMethod = method || (body ? "POST" : "GET");
+    if (!/^[A-Z]+$/.test(normalizedMethod)) {
+      throw new Error(t("tool.curlMethodInvalid"));
+    }
+    if (body && !Object.keys(headers).some((name) => name.toLowerCase() === "content-type")) {
+      headers["Content-Type"] = "application/x-www-form-urlencoded";
+    }
+
+    return {
+      method: normalizedMethod,
+      url: parsedUrl.href,
+      headers,
+      body: normalizedMethod === "GET" || normalizedMethod === "HEAD" ? "" : body,
+      timeoutMs,
+      followRedirect
+    };
+  }
+
+  function maskRequestHeaders(headers) {
+    return Object.fromEntries(
+      Object.entries(headers || {}).map(([name, value]) => {
+        const lowerName = name.toLowerCase();
+        if (["authorization", "cookie", "proxy-authorization"].includes(lowerName)) {
+          return [name, "configured"];
+        }
+        return [name, value];
+      })
+    );
+  }
+
+  function getFetchHeaders(headers) {
+    const forbidden = new Set(["host", "content-length", "user-agent", "origin", "referer"]);
+    return Object.fromEntries(
+      Object.entries(headers || {}).filter(([name]) => !forbidden.has(name.toLowerCase()))
+    );
+  }
+
+  function getResponseHeaders(response) {
+    const headers = {};
+    response.headers.forEach((value, name) => {
+      headers[name] = value;
+    });
+    return headers;
+  }
+
+  function shouldParseJson(responseType, response, text) {
+    if (responseType === "json") {
+      return true;
+    }
+    if (responseType === "text") {
+      return false;
+    }
+    const contentType = response.headers.get("content-type") || "";
+    return /json/i.test(contentType) || /^[\s\n\r]*[\[{]/.test(text);
+  }
+
+  async function executeCurlRequest(args = {}) {
+    const command = String(args.command || "").trim();
+    if (!command) {
+      throw new Error(t("tool.curlCommandRequired"));
+    }
+
+    const parsed = parseCurlCommand(command);
+    const responseType = ["auto", "json", "text"].includes(args.responseType) ? args.responseType : "auto";
+    const maxBytes = Math.max(1024, Math.min(CURL_MAX_RESPONSE_BYTES, Number(args.maxBytes) || CURL_MAX_RESPONSE_BYTES));
+    const controller = new AbortController();
+    const timerId = setTimeout(() => controller.abort(), parsed.timeoutMs);
+
+    try {
+      const response = await fetch(parsed.url, {
+        method: parsed.method,
+        headers: getFetchHeaders(parsed.headers),
+        body: parsed.body || undefined,
+        redirect: parsed.followRedirect ? "follow" : "manual",
+        signal: controller.signal
+      });
+      const contentLength = Number(response.headers.get("content-length") || 0);
+      if (contentLength > maxBytes) {
+        throw new Error(t("tool.curlResponseTooLarge"));
+      }
+
+      const rawText = await response.text();
+      const truncated = rawText.length > maxBytes;
+      const text = truncated ? rawText.slice(0, maxBytes) : rawText;
+      let json = null;
+      let jsonParsed = false;
+      if (shouldParseJson(responseType, response, text)) {
+        try {
+          json = JSON.parse(text);
+          jsonParsed = true;
+        } catch (error) {
+          if (responseType === "json") {
+            throw new Error(t("tool.curlJsonInvalid"));
+          }
+        }
+      }
+
+      return {
+        ok: response.ok,
+        request: {
+          method: parsed.method,
+          url: parsed.url,
+          headers: maskRequestHeaders(parsed.headers),
+          hasBody: Boolean(parsed.body)
+        },
+        response: {
+          status: response.status,
+          ok: response.ok,
+          url: response.url,
+          headers: getResponseHeaders(response),
+          truncated,
+          ...(jsonParsed ? { json } : { text })
+        }
+      };
     } finally {
       clearTimeout(timerId);
     }
-  }
-
-  function getCurrentCondition(payload) {
-    return Array.isArray(payload?.current_condition) ? payload.current_condition[0] || {} : {};
-  }
-
-  function getWeatherDescription(condition) {
-    const item = Array.isArray(condition.weatherDesc) ? condition.weatherDesc[0] : null;
-    return item?.value || "";
-  }
-
-  function getNearestArea(payload, fallback) {
-    const area = Array.isArray(payload?.nearest_area) ? payload.nearest_area[0] || {} : {};
-    const city = Array.isArray(area.areaName) ? area.areaName[0]?.value : "";
-    const region = Array.isArray(area.region) ? area.region[0]?.value : "";
-    const country = Array.isArray(area.country) ? area.country[0]?.value : "";
-    return [city, region, country].filter(Boolean).join(", ") || fallback;
-  }
-
-  async function getWeather(args = {}) {
-    const location = normalizeLocation(args.location);
-    if (!location) {
-      throw new Error(t("tool.locationRequired"));
-    }
-
-    const url = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
-    const payload = await fetchJson(url, WEATHER_TIMEOUT_MS);
-    const condition = getCurrentCondition(payload);
-
-    return {
-      location: getNearestArea(payload, location),
-      query: location,
-      description: getWeatherDescription(condition),
-      temperatureC: condition.temp_C || "",
-      feelsLikeC: condition.FeelsLikeC || "",
-      humidity: condition.humidity || "",
-      windKmph: condition.windspeedKmph || "",
-      windDirection: condition.winddir16Point || "",
-      observationTime: condition.observation_time || "",
-      source: "wttr.in"
-    };
   }
 
   function maskSecret(value) {
@@ -471,8 +804,8 @@
   }
 
   async function execute(name, args, context = {}) {
-    if (name === "get_weather") {
-      return getWeather(args);
+    if (name === "curl") {
+      return executeCurlRequest(args);
     }
 
     if (name === "browser_control") {
@@ -504,6 +837,7 @@
   globalThis.DogeclawTools = {
     getSchemas,
     describeTools,
+    parseCurlCommand,
     execute
   };
 })();

@@ -4,6 +4,7 @@ importScripts(
   "i18n.js",
   "llm.js",
   "browser.js",
+  "skills.js",
   "vendor/qrcode-generator.js",
   "channels/wechat.js",
   "tools.js",
