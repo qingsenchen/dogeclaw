@@ -7,6 +7,7 @@
     },
     storage: {
       llmConfigKey: "dogeclaw-llm-config",
+      skillConfigKey: "dogeclaw-skill-config",
       floatingButtonStateKeyPrefix: "dogeclaw-floating-enabled:",
       tabConversationKeyPrefix: "dogeclaw-tab-conversation:",
       wechatConfigKey: "dogeclaw-channel-wechat-config",

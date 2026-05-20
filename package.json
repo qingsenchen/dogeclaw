@@ -7,6 +7,6 @@
     "build:chrome": "node scripts/build-extension.mjs chrome",
     "build:edge": "node scripts/build-extension.mjs edge",
     "build:firefox": "node scripts/build-extension.mjs firefox",
-    "check": "node --check platform/extension-api.js && node --check background-loader.js && node --check background.js && node --check channels/wechat.js && node --check content/styles.js && node --check content/browser-actions.js && node --check content/index.js && node --check llm.js && node --check browser.js && node --check tools.js && node --check agent.js && node --check scripts/build-extension.mjs"
+    "check": "node --check platform/extension-api.js && node --check background-loader.js && node --check background.js && node --check channels/wechat.js && node --check content/styles.js && node --check content/browser-actions.js && node --check content/index.js && node --check llm.js && node --check browser.js && node --check skills.js && node --check tools.js && node --check agent.js && node --check scripts/build-extension.mjs"
   }
 }

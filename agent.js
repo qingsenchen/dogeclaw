@@ -257,6 +257,18 @@
     });
   }
 
+  async function getSkillSystemPrompt(toolSchemas) {
+    if (!Array.isArray(toolSchemas) || !toolSchemas.length || !globalThis.DogeclawSkills?.getSystemPrompt) {
+      return "";
+    }
+
+    try {
+      return await DogeclawSkills.getSystemPrompt({ tools: toolSchemas });
+    } catch {
+      return "";
+    }
+  }
+
   async function runTurn({ message, history = [], onDelta, onStep, tools = true, toolContext = {} } = {}) {
     const content = normalizeContent(message);
     if (isEmptyContent(content)) {
@@ -266,13 +278,16 @@
     const context = createContext(history);
     context.add({ role: "user", content });
     let emptyReplyCount = 0;
+    const toolSchemas = tools === false ? null : DogeclawTools.getSchemas();
+    const skillSystemPrompt = await getSkillSystemPrompt(toolSchemas);
 
     for (let iteration = 0; iteration < DEFAULT_MAX_ITERATIONS; iteration += 1) {
       onStep?.({ type: "llm_start", iteration });
 
       const result = await DogeclawLLM.chatMessages({
         messages: context.getMessages(),
-        tools: tools === false ? null : DogeclawTools.getSchemas()
+        tools: toolSchemas,
+        runtimeSystemPrompt: skillSystemPrompt
       });
 
       if (result.toolCalls?.length) {
@@ -314,6 +329,8 @@
     const context = createContext(history);
     context.add({ role: "user", content });
     let emptyReplyCount = 0;
+    const toolSchemas = tools === false ? null : DogeclawTools.getSchemas();
+    const skillSystemPrompt = await getSkillSystemPrompt(toolSchemas);
 
     for (let iteration = 0; iteration < DEFAULT_MAX_ITERATIONS; iteration += 1) {
       onStep?.({ type: "llm_start", iteration });
@@ -321,7 +338,8 @@
       let fullText = "";
       const result = await DogeclawLLM.streamMessages({
         messages: context.getMessages(),
-        tools: tools === false ? null : DogeclawTools.getSchemas(),
+        tools: toolSchemas,
+        runtimeSystemPrompt: skillSystemPrompt,
         signal,
         onDelta: (delta, accumulated) => {
           fullText = accumulated || `${fullText}${delta || ""}`;
