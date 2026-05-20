@@ -1189,6 +1189,25 @@ PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "skillConfig") {
+    const runtime = globalThis.DogeclawSkills;
+    if (!runtime?.listSkills || !runtime?.setSkillEnabled) {
+      sendResponse({ ok: false, error: t("skill.runtimeUnavailable") });
+      return false;
+    }
+    const action = String(message.action || "list");
+    const request =
+      action === "list"
+        ? runtime.listSkills()
+        : action === "set_enabled"
+          ? runtime.setSkillEnabled(message.id, message.enabled).then(() => runtime.listSkills())
+          : Promise.reject(new Error(t("skill.unknownAction", { action })));
+    request
+      .then((skills) => sendResponse({ ok: true, result: { skills } }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+
   if (message?.type === "chatWithDogeclaw") {
     DogeclawAgent.runTurn({
       message: message.message,

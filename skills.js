@@ -1,5 +1,8 @@
 (function () {
+  const CONFIG = globalThis.DogeclawConfig || {};
   const PLATFORM = globalThis.DogeclawPlatform || {};
+  const SKILL_CONFIG_KEY = CONFIG.storage?.skillConfigKey || "dogeclaw-skill-config";
+  const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
 
   const BUNDLED_SKILLS = [
     {
@@ -10,6 +13,37 @@
   ];
 
   let skillLoadPromise = null;
+
+  function getLocalStorage() {
+    const storage = PLATFORM.storage?.local;
+    if (!storage?.get || !storage?.set) {
+      throw new Error(t("runtime.storageApiUnavailable"));
+    }
+    return storage;
+  }
+
+  function normalizeSettings(value) {
+    const raw = value && typeof value === "object" ? value : {};
+    const enabledById = raw.enabledById && typeof raw.enabledById === "object" ? raw.enabledById : {};
+    return {
+      enabledById: Object.fromEntries(
+        Object.entries(enabledById)
+          .filter(([, enabled]) => typeof enabled === "boolean")
+          .map(([id, enabled]) => [String(id), enabled])
+      )
+    };
+  }
+
+  async function getSkillSettings() {
+    const result = await getLocalStorage().get(SKILL_CONFIG_KEY);
+    return normalizeSettings(result[SKILL_CONFIG_KEY]);
+  }
+
+  async function saveSkillSettings(settings) {
+    const next = normalizeSettings(settings);
+    await getLocalStorage().set({ [SKILL_CONFIG_KEY]: next });
+    return next;
+  }
 
   function parseScalar(value) {
     const text = String(value || "").trim();
@@ -102,6 +136,7 @@
       metadata: data.metadata && typeof data.metadata === "object" ? data.metadata : {},
       body,
       path: definition.path,
+      defaultEnabled: definition.enabled !== false,
       enabled: definition.enabled !== false
     };
   }
@@ -122,6 +157,15 @@
   function getRequiredTools(skill) {
     const tools = getDogeclawMetadata(skill).requires?.tools;
     return Array.isArray(tools) ? tools.map((tool) => String(tool || "").trim()).filter(Boolean) : [];
+  }
+
+  function applySkillSettings(skill, settings) {
+    const stored = settings?.enabledById?.[skill.id];
+    const enabled = typeof stored === "boolean" ? stored : skill.defaultEnabled !== false;
+    return {
+      ...skill,
+      enabled
+    };
   }
 
   function isSkillAvailable(skill, context = {}) {
@@ -151,8 +195,46 @@
   }
 
   async function getEnabledSkills(context = {}) {
+    const [skills, settings] = await Promise.all([loadSkills(), getSkillSettings()]);
+    return skills.map((skill) => applySkillSettings(skill, settings)).filter((skill) => isSkillAvailable(skill, context));
+  }
+
+  async function listSkills() {
+    const [skills, settings] = await Promise.all([loadSkills(), getSkillSettings()]);
+    return skills.map((skill) => {
+      const configured = applySkillSettings(skill, settings);
+      return {
+        id: configured.id,
+        name: configured.name,
+        description: configured.description,
+        emoji: String(getDogeclawMetadata(configured).emoji || "").trim(),
+        enabled: configured.enabled,
+        defaultEnabled: configured.defaultEnabled !== false,
+        requires: {
+          tools: getRequiredTools(configured)
+        },
+        path: configured.path
+      };
+    });
+  }
+
+  async function setSkillEnabled(id, enabled) {
+    const skillId = String(id || "").trim();
     const skills = await loadSkills();
-    return skills.filter((skill) => isSkillAvailable(skill, context));
+    const skill = skills.find((item) => item.id === skillId);
+    if (!skill) {
+      throw new Error(t("skill.unknownSkill", { id: skillId || t("common.empty") }));
+    }
+    const settings = await getSkillSettings();
+    const next = {
+      ...settings,
+      enabledById: {
+        ...settings.enabledById,
+        [skill.id]: Boolean(enabled)
+      }
+    };
+    await saveSkillSettings(next);
+    return applySkillSettings(skill, next);
   }
 
   async function getSystemPrompt(context = {}) {
@@ -175,7 +257,9 @@
   globalThis.DogeclawSkills = {
     getEnabledSkills,
     getSystemPrompt,
+    listSkills,
     parseFrontmatter,
-    resetCache
+    resetCache,
+    setSkillEnabled
   };
 })();

@@ -500,6 +500,107 @@
     return row;
   }
 
+  function renderSkillConfigForm({ state, onToggle, onClose }) {
+    const row = document.createElement("div");
+    row.className = "pig-chat-row is-left is-component";
+
+    const panel = document.createElement("div");
+    panel.className = "pig-chat-bubble pig-component-card pig-skill-config-form";
+    stopComponentPropagation(panel);
+
+    const title = document.createElement("div");
+    title.className = "pig-config-title";
+    title.textContent = t("skill.configTitle");
+
+    const closeButton = document.createElement("button");
+    closeButton.className = "pig-config-close";
+    closeButton.type = "button";
+    closeButton.title = t("tips.close");
+    closeButton.setAttribute("aria-label", t("tips.close"));
+    closeButton.append(createCloseIcon());
+    closeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose?.();
+    });
+
+    const header = document.createElement("div");
+    header.className = "pig-config-header";
+    header.append(title, closeButton);
+
+    const body = document.createElement("div");
+    body.className = "pig-skill-config-body";
+
+    if (state.skillConfig.loading) {
+      const loading = document.createElement("div");
+      loading.className = "pig-skill-hint";
+      loading.textContent = t("skill.loading");
+      body.append(loading);
+    } else if (!state.skillConfig.skills.length) {
+      const empty = document.createElement("div");
+      empty.className = "pig-skill-hint";
+      empty.textContent = t("skill.empty");
+      body.append(empty);
+    } else {
+      const list = document.createElement("div");
+      list.className = "pig-skill-list";
+      state.skillConfig.skills.forEach((skill) => {
+        const item = document.createElement("div");
+        item.className = "pig-skill-item";
+
+        const icon = document.createElement("div");
+        icon.className = "pig-skill-icon";
+        icon.textContent = skill.emoji || skill.name?.slice(0, 1) || "?";
+
+        const text = document.createElement("div");
+        text.className = "pig-skill-text";
+
+        const name = document.createElement("div");
+        name.className = "pig-skill-name";
+        name.textContent = skill.name || skill.id || t("common.empty");
+
+        const description = document.createElement("div");
+        description.className = "pig-skill-description";
+        description.textContent = skill.description || skill.id || "";
+
+        text.append(name, description);
+
+        const switchLabel = document.createElement("label");
+        switchLabel.className = "pig-skill-switch";
+        switchLabel.title = skill.enabled ? t("skill.enabled") : t("skill.disabled");
+        switchLabel.setAttribute("aria-label", `${skill.name || skill.id || t("common.empty")}: ${switchLabel.title}`);
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = Boolean(skill.enabled);
+        checkbox.disabled = state.skillConfig.loading || state.skillConfig.savingId === skill.id;
+        checkbox.addEventListener("change", (event) => {
+          event.stopPropagation();
+          onToggle?.(skill, checkbox.checked);
+        });
+
+        const track = document.createElement("span");
+        track.className = "pig-skill-switch-track";
+        switchLabel.append(checkbox, track);
+
+        item.append(icon, text, switchLabel);
+        list.append(item);
+      });
+      body.append(list);
+    }
+
+    if (state.skillConfig.error) {
+      const error = document.createElement("div");
+      error.className = "pig-config-error";
+      error.textContent = state.skillConfig.error;
+      body.append(error);
+    }
+
+    panel.append(header, body);
+    row.append(panel);
+    return row;
+  }
+
   function renderChannelConfigForm({ state, onStart, onCheck, onClose }) {
     const row = document.createElement("div");
     row.className = "pig-chat-row is-left is-component";
@@ -591,6 +692,7 @@
     renderTipMessage,
     renderChannelConfigForm,
     renderLlmConfigForm,
+    renderSkillConfigForm,
     renderMarkdown
   };
 })();

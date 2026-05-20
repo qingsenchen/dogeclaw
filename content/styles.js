@@ -715,6 +715,132 @@
         gap: 8px;
       }
 
+      .pig-skill-config-form {
+        display: grid;
+        gap: 8px;
+      }
+
+      .pig-skill-config-body {
+        display: grid;
+        gap: 8px;
+      }
+
+      .pig-skill-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .pig-skill-item {
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 46px;
+        padding: 7px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .pig-skill-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.09);
+        font-size: 15px;
+        line-height: 1;
+      }
+
+      .pig-skill-text {
+        display: grid;
+        gap: 2px;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .pig-skill-name {
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
+      .pig-skill-description,
+      .pig-skill-hint {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 12px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+
+      .pig-skill-switch {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+        width: 38px;
+        height: 22px;
+        cursor: pointer;
+      }
+
+      .pig-skill-switch input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .pig-skill-switch input:disabled {
+        cursor: default;
+      }
+
+      .pig-skill-switch-track {
+        position: relative;
+        display: block;
+        width: 38px;
+        height: 22px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+        transition: background 160ms ease, opacity 160ms ease;
+      }
+
+      .pig-skill-switch-track::before {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: #ffffff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        transition: transform 160ms ease;
+      }
+
+      .pig-skill-switch input:checked + .pig-skill-switch-track {
+        background: rgba(34, 197, 94, 0.58);
+      }
+
+      .pig-skill-switch input:checked + .pig-skill-switch-track::before {
+        background: #f0fdf4;
+        transform: translateX(16px);
+      }
+
+      .pig-skill-switch input:focus-visible + .pig-skill-switch-track {
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
+      }
+
+      .pig-skill-switch input:disabled + .pig-skill-switch-track {
+        opacity: 0.62;
+      }
+
       .pig-channel-config-body {
         display: grid;
         gap: 8px;
