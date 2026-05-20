@@ -113,9 +113,35 @@
     const lines = String(message || "").replace(/\r\n/g, "\n").split("\n");
     const html = [];
     let paragraph = [];
-    let listType = "";
+    const listStack = [];
     let inCodeBlock = false;
     let codeLines = [];
+
+    function getIndentSize(value) {
+      return String(value || "").replace(/\t/g, "    ").length;
+    }
+
+    function parseListItem(line) {
+      const unordered = line.match(/^(\s*)[-*]\s+(.+)$/);
+      if (unordered) {
+        return { type: "ul", indent: getIndentSize(unordered[1]), content: unordered[2] };
+      }
+      const ordered = line.match(/^(\s*)\d+\.\s+(.+)$/);
+      if (ordered) {
+        return { type: "ol", indent: getIndentSize(ordered[1]), content: ordered[2] };
+      }
+      return null;
+    }
+
+    function nextNonEmptyListItem(startIndex) {
+      for (let index = startIndex; index < lines.length; index += 1) {
+        if (!lines[index].trim()) {
+          continue;
+        }
+        return parseListItem(lines[index]);
+      }
+      return null;
+    }
 
     function flushParagraph() {
       if (!paragraph.length) return;
@@ -123,19 +149,44 @@
       paragraph = [];
     }
 
-    function flushList() {
-      if (!listType) return;
-      html.push(`</${listType}>`);
-      listType = "";
+    function closeListLevel() {
+      const current = listStack.pop();
+      if (!current) return;
+      if (current.itemOpen) {
+        html.push("</li>");
+      }
+      html.push(`</${current.type}>`);
     }
 
-    function ensureList(nextType) {
-      flushParagraph();
-      if (listType && listType !== nextType) flushList();
-      if (!listType) {
-        listType = nextType;
-        html.push(`<${listType}>`);
+    function flushList() {
+      while (listStack.length) {
+        closeListLevel();
       }
+    }
+
+    function renderListItem(item) {
+      flushParagraph();
+
+      while (listStack.length && item.indent < listStack[listStack.length - 1].indent) {
+        closeListLevel();
+      }
+
+      const current = listStack[listStack.length - 1];
+      if (!current || item.indent > current.indent) {
+        html.push(`<${item.type}>`);
+        listStack.push({ type: item.type, indent: item.indent, itemOpen: false });
+      } else if (current.type !== item.type) {
+        closeListLevel();
+        html.push(`<${item.type}>`);
+        listStack.push({ type: item.type, indent: item.indent, itemOpen: false });
+      }
+
+      const next = listStack[listStack.length - 1];
+      if (next.itemOpen) {
+        html.push("</li>");
+      }
+      html.push(`<li>${renderInlineMarkdown(item.content)}`);
+      next.itemOpen = true;
     }
 
     function flushCodeBlock() {
@@ -165,6 +216,9 @@
 
       if (!line.trim()) {
         flushParagraph();
+        if (listStack.length && nextNonEmptyListItem(index + 1)) {
+          continue;
+        }
         flushList();
         continue;
       }
@@ -196,17 +250,9 @@
         continue;
       }
 
-      const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-      if (unordered) {
-        ensureList("ul");
-        html.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
-        continue;
-      }
-
-      const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-      if (ordered) {
-        ensureList("ol");
-        html.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
+      const listItem = parseListItem(line);
+      if (listItem) {
+        renderListItem(listItem);
         continue;
       }
 
@@ -361,7 +407,7 @@
     return input;
   }
 
-  function renderLlmConfigForm({ state, onSave }) {
+  function renderLlmConfigForm({ state, onSave, onClose }) {
     const llmDefaults = globalThis.DogeclawConfig?.llm?.defaultConfig || {};
     const row = document.createElement("div");
     row.className = "pig-chat-row is-left is-component";
@@ -373,6 +419,22 @@
     const title = document.createElement("div");
     title.className = "pig-config-title";
     title.textContent = t("llm.configTitle");
+
+    const closeButton = document.createElement("button");
+    closeButton.className = "pig-config-close";
+    closeButton.type = "button";
+    closeButton.title = t("tips.close");
+    closeButton.setAttribute("aria-label", t("tips.close"));
+    closeButton.append(createCloseIcon());
+    closeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose?.();
+    });
+
+    const header = document.createElement("div");
+    header.className = "pig-config-header";
+    header.append(title, closeButton);
 
     const apiBaseInput = createInput({
       className: "pig-config-input",
@@ -420,7 +482,7 @@
 
     actions.append(saveButton);
     panel.append(
-      title,
+      header,
       createLlmConfigField("Base URL", apiBaseInput),
       createLlmConfigField("Model", modelInput),
       createLlmConfigField("API Key", apiKeyInput),

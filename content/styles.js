@@ -449,6 +449,19 @@
       .pig-chat-bubble ul,
       .pig-chat-bubble ol {
         padding-left: 18px;
+        list-style-position: outside;
+      }
+
+      #${rootId} .pig-chat-bubble ul {
+        list-style-type: disc !important;
+      }
+
+      #${rootId} .pig-chat-bubble ol {
+        list-style-type: decimal !important;
+      }
+
+      #${rootId} .pig-chat-bubble li {
+        display: list-item !important;
       }
 
       .pig-chat-bubble li + li {
@@ -756,6 +769,40 @@
         font-size: 13px;
         font-weight: 700;
         line-height: 1.3;
+      }
+
+      .pig-config-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .pig-config-close {
+        all: unset;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.72);
+        background: rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+      }
+
+      .pig-config-close:hover,
+      .pig-config-close:focus-visible {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .pig-config-close svg {
+        width: 13px;
+        height: 13px;
+        display: block;
       }
 
       .pig-config-field {

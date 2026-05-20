@@ -819,6 +819,17 @@
 
     petController.handlePrimaryAction(event?.clientX, event?.clientY);
 
+    if (
+      state.chatVisible &&
+      state.hoverMessages.length > 0 &&
+      !state.commandMenu.visible &&
+      !state.llmConfig.visible &&
+      !state.channelConfig.visible
+    ) {
+      collapseTransientChat();
+      return;
+    }
+
     if (await showLlmConfigIfNeeded()) {
       return;
     }
@@ -999,6 +1010,30 @@
     scheduleTabConversationPersist();
   }
 
+  function hideChatImmediatelyForDrag() {
+    if (state.chatHideTimer) {
+      window.clearTimeout(state.chatHideTimer);
+      state.chatHideTimer = 0;
+    }
+    if (state.chatCollapseTimer) {
+      window.clearTimeout(state.chatCollapseTimer);
+      state.chatCollapseTimer = 0;
+    }
+
+    if (!state.thinkingActive && !state.hoverMessages.some((message) => message.pending)) {
+      state.chatVisible = false;
+      state.chatHoldExpanded = false;
+    }
+
+    if (elements?.hoverMessages) {
+      elements.hoverMessages.hidden = true;
+      elements.hoverMessages.classList.remove("is-visible", "is-collapsing", "is-scrollable", "is-drag-scrolling");
+    }
+    elements.buttonHoverInput?.blur?.();
+    scheduleSync();
+    scheduleTabConversationPersist();
+  }
+
   function hideChatIfCollapsed(event) {
     const nextTarget = event?.relatedTarget;
     if (nextTarget && elements?.button?.contains?.(nextTarget)) {
@@ -1056,6 +1091,23 @@
     if (!activePanel || activePanel === "channel") {
       state.channelConfig.visible = false;
     }
+  }
+
+  function restoreChatRecordsAfterConfig() {
+    const hasRecords = state.hoverMessages.length > 0;
+    state.chatVisible = hasRecords;
+    state.chatHoldExpanded = hasRecords;
+    if (hasRecords) {
+      requestHoverMessagesScrollToBottom();
+    }
+  }
+
+  function closeLlmProviderConfigForm() {
+    closeConfigPanel("llm");
+    restoreChatRecordsAfterConfig();
+    renderHoverMessages();
+    scheduleSync();
+    scheduleTabConversationPersist();
   }
 
   function applyLlmCapabilities(config = {}) {
@@ -1509,7 +1561,8 @@
     } else if (state.llmConfig.visible) {
       componentRow = window.DogeclawUI.renderLlmConfigForm({
         state,
-        onSave: saveLlmConfig
+        onSave: saveLlmConfig,
+        onClose: closeLlmProviderConfigForm
       });
     } else if (state.channelConfig.visible) {
       componentRow = window.DogeclawUI.renderChannelConfigForm({
@@ -1529,7 +1582,7 @@
       : -1;
     let componentInserted = false;
 
-    if (state.commandMenu.visible) {
+    if (state.commandMenu.visible || state.llmConfig.visible) {
       elements.hoverMessages.append(componentRow);
       componentInserted = true;
     } else {
@@ -2846,7 +2899,7 @@
       elements.root.style.right = "auto";
       elements.root.style.bottom = "auto";
       elements.button.classList.add("is-dragging");
-      collapseTransientChat();
+      hideChatImmediatelyForDrag();
     }
 
     if (!state.drag.moved) {
