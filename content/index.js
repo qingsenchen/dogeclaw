@@ -38,6 +38,95 @@
     SKILLS: "skills"
   };
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
+  const INSTANCE_KEY = "__dogeclawContentInstance";
+  const instanceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const cleanupCallbacks = [];
+  let instanceActive = true;
+
+  const existingInstance = globalThis[INSTANCE_KEY];
+  if (existingInstance?.active && typeof existingInstance.ensureMounted === "function") {
+    try {
+      existingInstance.ensureMounted();
+    } catch {}
+    return;
+  }
+  try {
+    existingInstance?.destroy?.();
+  } catch {}
+
+  function isCurrentInstance() {
+    return instanceActive && globalThis[INSTANCE_KEY]?.id === instanceId;
+  }
+
+  function addCleanup(callback) {
+    if (typeof callback === "function") {
+      cleanupCallbacks.push(callback);
+    }
+  }
+
+  function addManagedEventListener(target, type, listener, options) {
+    target?.addEventListener?.(type, listener, options);
+    addCleanup(() => target?.removeEventListener?.(type, listener, options));
+  }
+
+  function removeDogeclawRoots(exceptRoot = null) {
+    document.querySelectorAll(`[id="${ROOT_ID}"]`).forEach((root) => {
+      if (root !== exceptRoot) {
+        root.remove();
+      }
+    });
+  }
+
+  function destroyCurrentInstance() {
+    if (!instanceActive) {
+      return;
+    }
+
+    instanceActive = false;
+    cleanupCallbacks.splice(0).reverse().forEach((cleanup) => {
+      try {
+        cleanup();
+      } catch {}
+    });
+    try {
+      if (typeof activeReplyStop === "function") {
+        activeReplyStop();
+      }
+    } catch {}
+    try {
+      window.clearTimeout(tabHistorySaveTimer);
+      window.clearTimeout(state.chatHideTimer);
+      window.clearTimeout(state.chatCollapseTimer);
+      window.clearTimeout(state.navigationResetTimer);
+      window.clearTimeout(state.inputImageDrag.resetTimer);
+      window.clearTimeout(state.channelConfig.autoCheckTimer);
+      hoverTipDismissTimers.forEach((timerId) => window.clearTimeout(timerId));
+      hoverTipDismissTimers.clear();
+    } catch {}
+    try {
+      elements?.root?.remove();
+    } catch {}
+    if (globalThis[INSTANCE_KEY]?.id === instanceId) {
+      try {
+        delete globalThis[INSTANCE_KEY];
+      } catch {
+        globalThis[INSTANCE_KEY] = null;
+      }
+    }
+  }
+
+  globalThis[INSTANCE_KEY] = {
+    id: instanceId,
+    get active() {
+      return instanceActive;
+    },
+    destroy: destroyCurrentInstance,
+    ensureMounted: () => {
+      if (isCurrentInstance()) {
+        ensureUiMounted();
+      }
+    }
+  };
 
   function isImageInputUnsupportedError(error) {
     const message = String(error || "");
@@ -67,10 +156,7 @@
   };
 
   [ROOT_ID, ...(CONTENT_CONFIG.legacyRootIds || [])].forEach((id) => {
-    const existingRoot = document.getElementById(id);
-    if (existingRoot) {
-      existingRoot.remove();
-    }
+    document.querySelectorAll(`[id="${id}"]`).forEach((existingRoot) => existingRoot.remove());
   });
 
   injectContentStyles();
@@ -389,13 +475,21 @@
     state,
     scheduleSync
   });
-  document.addEventListener("mousemove", (event) => {
+  const mouseMoveListener = (event) => {
+    if (!isCurrentInstance()) {
+      return;
+    }
     petController.updateEyes(event.clientX, event.clientY);
-  });
+  };
+  addManagedEventListener(document, "mousemove", mouseMoveListener);
   if (isRuntimeContextValid()) {
     try {
       const runtime = PLATFORM.runtime || globalThis.chrome?.runtime;
-      runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
+      const runtimeMessageListener = (message, _sender, sendResponse) => {
+        if (!isCurrentInstance()) {
+          return false;
+        }
+
         if (message?.type === "setFloatingButtonVisible") {
           setFloatingButtonVisible(message.enabled);
           sendResponse?.({ ok: true, enabled: state.floatingEnabled });
@@ -519,16 +613,19 @@
         }
         sendResponse?.({ ok: true, handled });
         return false;
-      });
+      };
+      runtime?.onMessage?.addListener(runtimeMessageListener);
+      addCleanup(() => runtime?.onMessage?.removeListener?.(runtimeMessageListener));
     } catch {}
   }
 
   function ensureUiMounted() {
-    if (!state.floatingEnabled) {
+    if (!isCurrentInstance() || !state.floatingEnabled) {
       return;
     }
 
     injectContentStyles();
+    removeDogeclawRoots(elements.root);
 
     const mountTarget = document.body || document.documentElement;
     if (mountTarget && !elements.root.isConnected) {
@@ -812,12 +909,16 @@
   }
 
   function scheduleSync() {
-    if (state.syncQueued) {
+    if (!isCurrentInstance() || state.syncQueued) {
       return;
     }
 
     state.syncQueued = true;
     window.requestAnimationFrame(() => {
+      if (!isCurrentInstance()) {
+        state.syncQueued = false;
+        return;
+      }
       state.syncQueued = false;
       ensureUiMounted();
       syncUI();
@@ -1639,7 +1740,7 @@
   }
 
   function renderHoverMessages() {
-    if (!elements?.hoverMessages) {
+    if (!isCurrentInstance() || !elements?.hoverMessages) {
       return;
     }
 
@@ -3402,13 +3503,13 @@
 	    buttonHoverInput.addEventListener("input", handleHoverInputChange);
 	    buttonHoverInput.addEventListener("focus", handleHoverInputFocus);
 	    buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
-    document.addEventListener("dragenter", handleDocumentImageDragEnter, true);
-    document.addEventListener("dragstart", handleDocumentImageDragStart, true);
-    document.addEventListener("dragover", handleDocumentImageDragOver, true);
-    document.addEventListener("dragleave", handleDocumentImageDragLeave, true);
-    document.addEventListener("drop", handleDocumentImageDrop, true);
-    document.addEventListener("dragend", () => setInputImageDragState(false), true);
-	    window.addEventListener("resize", handleWindowResize);
+    addManagedEventListener(document, "dragenter", handleDocumentImageDragEnter, true);
+    addManagedEventListener(document, "dragstart", handleDocumentImageDragStart, true);
+    addManagedEventListener(document, "dragover", handleDocumentImageDragOver, true);
+    addManagedEventListener(document, "dragleave", handleDocumentImageDragLeave, true);
+    addManagedEventListener(document, "drop", handleDocumentImageDrop, true);
+    addManagedEventListener(document, "dragend", () => setInputImageDragState(false), true);
+	    addManagedEventListener(window, "resize", handleWindowResize);
 
     return {
       root,
@@ -3443,21 +3544,35 @@
   }
 
   function startMountWatchdog() {
-    window.setInterval(() => {
+    const watchdogId = window.setInterval(() => {
+      if (!isCurrentInstance()) {
+        window.clearInterval(watchdogId);
+        return;
+      }
       ensureUiMounted();
       if (state.chatVisible || state.thinkingActive || state.llmConfig.visible || state.skillConfig.visible || state.channelConfig.visible) {
         syncUI();
       }
     }, MOUNT_WATCHDOG_INTERVAL);
+    addCleanup(() => window.clearInterval(watchdogId));
   }
 
   async function start() {
     await loadFloatingButtonVisibility();
+    if (!isCurrentInstance()) {
+      return;
+    }
     await loadTabConversationHistory();
+    if (!isCurrentInstance()) {
+      return;
+    }
     ensureUiMounted();
     applySavedPosition();
     refreshLlmConfigStatus()
       .then(() => {
+        if (!isCurrentInstance()) {
+          return;
+        }
         renderInputImageState();
         scheduleSync();
       })
@@ -3470,7 +3585,7 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", start, { once: true });
+    addManagedEventListener(document, "DOMContentLoaded", start, { once: true });
   } else {
     start();
   }
