@@ -6,6 +6,11 @@
 
   const BUNDLED_SKILLS = [
     {
+      id: "current-page-search",
+      path: "skills/current-page-search/SKILL.md",
+      enabled: true
+    },
+    {
       id: "weather",
       path: "skills/weather/SKILL.md",
       enabled: true
