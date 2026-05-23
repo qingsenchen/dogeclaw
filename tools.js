@@ -47,7 +47,7 @@
       function: {
         name: "browser_control",
         description:
-          "控制浏览器。可查看当前页面、列出标签页、新建标签页、导航当前标签页、获取页面元素快照、截图当前可见区域、点击元素、输入文本、滚动、后退、前进或刷新。需要先 snapshot 获取可操作元素 ref，再 click/type。",
+          "控制浏览器。可查看当前页面、列出标签页、新建标签页、导航当前标签页、获取页面 compact snapshot、截图当前可见区域、点击元素、输入文本、滚动、后退、前进或刷新。snapshot 默认只返回给 agent 看的 compact 文本，不返回 refs 明细表；用 @b* ref 执行 click/type，用 @r* ref 滚动可滚动区域，操作后重新 snapshot。",
         parameters: {
           type: "object",
           properties: {
@@ -83,11 +83,11 @@
             },
             ref: {
               type: "string",
-              description: "snapshot 返回的元素引用，供 click/type 使用。"
+              description: "snapshot 返回的引用。@b* 用于 click/type；@r* 用于 scroll 指定可滚动区域。"
             },
             selector: {
               type: "string",
-              description: "可选 CSS 选择器，供 click/type 使用。优先使用 ref。"
+              description: "可选 CSS 选择器，供 click/type/scroll 使用。优先使用 ref。"
             },
             text: {
               type: "string",
@@ -103,15 +103,33 @@
             },
             x: {
               type: "number",
-              description: "scroll 的横向距离。"
+              description: "scroll 的横向距离。不传 ref 时滚动页面，传 @r* 时滚动该区域。"
             },
             y: {
               type: "number",
-              description: "scroll 的纵向距离。"
+              description: "scroll 的纵向距离。不传 ref 时滚动页面，传 @r* 时滚动该区域。"
             },
             maxItems: {
               type: "number",
-              description: "snapshot 最多返回的可交互元素数量。"
+              description: "snapshot compact 文本中最多展示的可交互元素数量；refs 明细保存在页面内部，不拼进 prompt。"
+            },
+            snapshotFormat: {
+              type: "string",
+              enum: ["compact", "raw"],
+              description: "snapshot 输出格式，默认 compact。raw 保留旧 JSON 形态，通常只用于调试。"
+            },
+            scope: {
+              type: "string",
+              enum: ["viewport", "all"],
+              description: "snapshot 范围，默认 viewport 只看当前视口；all 会扫描整页。"
+            },
+            maxTextChars: {
+              type: "number",
+              description: "compact snapshot 可见文本总预算。新版不会截断单条文本；预算不够时整条 text chunk 会被省略并计数。"
+            },
+            includeUnchanged: {
+              type: "boolean",
+              description: "compact snapshot 是否包含 diff 中未变化的 fixed/sticky 区域，默认 false。"
             },
             format: {
               type: "string",

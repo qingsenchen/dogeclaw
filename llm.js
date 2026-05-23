@@ -7,6 +7,8 @@
   const LLM_HISTORY_LIMIT = LLM_CONFIG.maxMessages || 32;
   const IMAGE_INPUT_PROBE_TIMEOUT_MS = LLM_CONFIG.imageInputProbeTimeoutMs || 15000;
   const STREAM_INCLUDE_USAGE = LLM_CONFIG.streamIncludeUsage !== false;
+  const LLM_CONTEXT_WINDOW_DEFAULT = Number(LLM_CONFIG.contextWindowDefault) || 32000;
+  const LLM_CONTEXT_WINDOWS = LLM_CONFIG.contextWindows || {};
   const IMAGE_INPUT_PROBE_DATA_URL =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
   const MODEL_ALIASES = LLM_CONFIG.modelAliases || {};
@@ -92,6 +94,30 @@
     }
 
     return resolved;
+  }
+
+  function normalizeModelKey(model) {
+    return String(model || "").trim().toLowerCase();
+  }
+
+  function getContextWindowLimit(model) {
+    const raw = normalizeModelKey(resolveModel(model));
+    const candidates = [
+      raw,
+      raw.replace(/^openai\//, ""),
+      raw.replace(/^deepseek\//, ""),
+      raw.replace(/^gemini\//, ""),
+      raw.split("/").pop()
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const value = Number(LLM_CONTEXT_WINDOWS[candidate]);
+      if (Number.isFinite(value) && value > 0) {
+        return value;
+      }
+    }
+
+    return LLM_CONTEXT_WINDOW_DEFAULT;
   }
 
   function normalizeCapabilities(capabilities = {}) {
@@ -727,6 +753,7 @@
     streamChat,
     streamMessages,
     resolveModel,
-    getProviderModelName
+    getProviderModelName,
+    getContextWindowLimit
   };
 })();
