@@ -308,6 +308,27 @@
     });
   }
 
+  async function getToolSchemas(toolsEnabled) {
+    if (toolsEnabled === false) {
+      return null;
+    }
+
+    if (!globalThis.DogeclawTools?.getSchemas) {
+      return null;
+    }
+
+    if (!globalThis.DogeclawSkills?.getRequiredToolsForEnabledSkills) {
+      return DogeclawTools.getSchemas();
+    }
+
+    try {
+      const requiredTools = await DogeclawSkills.getRequiredToolsForEnabledSkills();
+      return DogeclawTools.getSchemas({ optionalTools: requiredTools });
+    } catch {
+      return DogeclawTools.getSchemas();
+    }
+  }
+
   async function getSkillSystemPrompt(toolSchemas) {
     if (!Array.isArray(toolSchemas) || !toolSchemas.length || !globalThis.DogeclawSkills?.getSystemPrompt) {
       return "";
@@ -330,7 +351,7 @@
     const context = createContext(history, { maxContentLength });
     context.add({ role: "user", content });
     let emptyReplyCount = 0;
-    const toolSchemas = tools === false ? null : DogeclawTools.getSchemas();
+    const toolSchemas = await getToolSchemas(tools);
     const skillSystemPrompt = await getSkillSystemPrompt(toolSchemas);
 
     for (let iteration = 0; iteration < DEFAULT_MAX_ITERATIONS; iteration += 1) {
@@ -382,7 +403,7 @@
     const context = createContext(history, { maxContentLength });
     context.add({ role: "user", content });
     let emptyReplyCount = 0;
-    const toolSchemas = tools === false ? null : DogeclawTools.getSchemas();
+    const toolSchemas = await getToolSchemas(tools);
     const skillSystemPrompt = await getSkillSystemPrompt(toolSchemas);
 
     for (let iteration = 0; iteration < DEFAULT_MAX_ITERATIONS; iteration += 1) {

@@ -221,17 +221,48 @@
       }
     }
   ];
+  const OPTIONAL_TOOL_NAMES = new Set(["curl"]);
 
-  function getSchemas() {
-    return TOOL_SCHEMAS.slice();
+  function normalizeToolNameList(value) {
+    return (Array.isArray(value) ? value : [])
+      .map((name) => String(name || "").trim())
+      .filter(Boolean);
   }
 
-  function describeTools() {
-    return TOOL_SCHEMAS.map((schema) => ({
+  function getSchemaName(schema) {
+    return String(schema?.function?.name || schema?.name || "").trim();
+  }
+
+  function shouldIncludeSchema(schema, options = {}) {
+    const name = getSchemaName(schema);
+    if (!OPTIONAL_TOOL_NAMES.has(name)) {
+      return true;
+    }
+    if (options.includeOptional === true) {
+      return true;
+    }
+    const optionalTools = new Set([
+      ...normalizeToolNameList(options.optionalTools),
+      ...normalizeToolNameList(options.requiredTools)
+    ]);
+    return optionalTools.has(name);
+  }
+
+  function getSchemas(options = {}) {
+    return TOOL_SCHEMAS.filter((schema) => shouldIncludeSchema(schema, options));
+  }
+
+  function describeTools(options = {}) {
+    return getSchemas(options).map((schema) => ({
       name: schema.function.name,
       description: schema.function.description,
-      parameters: schema.function.parameters
+      parameters: schema.function.parameters,
+      optional: OPTIONAL_TOOL_NAMES.has(schema.function.name)
     }));
+  }
+
+  function getOptionalToolNames() {
+    return Array.from(OPTIONAL_TOOL_NAMES);
   }
 
   function tokenizeCurlCommand(command) {
@@ -854,6 +885,7 @@
 
   globalThis.DogeclawTools = {
     getSchemas,
+    getOptionalToolNames,
     describeTools,
     parseCurlCommand,
     execute

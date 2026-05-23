@@ -204,6 +204,18 @@
     return skills.map((skill) => applySkillSettings(skill, settings)).filter((skill) => isSkillAvailable(skill, context));
   }
 
+  async function getRequiredToolsForEnabledSkills() {
+    const [skills, settings] = await Promise.all([loadSkills(), getSkillSettings()]);
+    const toolNames = new Set();
+    skills
+      .map((skill) => applySkillSettings(skill, settings))
+      .filter((skill) => skill.enabled)
+      .forEach((skill) => {
+        getRequiredTools(skill).forEach((toolName) => toolNames.add(toolName));
+      });
+    return Array.from(toolNames);
+  }
+
   async function listSkills() {
     const [skills, settings] = await Promise.all([loadSkills(), getSkillSettings()]);
     return skills.map((skill) => {
@@ -261,6 +273,7 @@
 
   globalThis.DogeclawSkills = {
     getEnabledSkills,
+    getRequiredToolsForEnabledSkills,
     getSystemPrompt,
     listSkills,
     parseFrontmatter,
