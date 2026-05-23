@@ -498,16 +498,19 @@
       }
 
       .pig-markdown-table-wrap {
+        --pig-table-border: rgba(255, 255, 255, 0.16);
         max-width: 100%;
         overflow-x: auto;
-        border: 1px solid rgba(255, 255, 255, 0.16);
+        border: 1px solid var(--pig-table-border);
         border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
       }
 
       .pig-markdown-table-wrap table {
         width: 100%;
         min-width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 0;
         color: #ffffff;
         font-size: 12px;
         line-height: 1.35;
@@ -516,8 +519,8 @@
       .pig-markdown-table-wrap th,
       .pig-markdown-table-wrap td {
         padding: 6px 8px;
-        border-right: 1px solid rgba(255, 255, 255, 0.12);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        border: 0;
+        box-shadow: inset -1px 0 0 var(--pig-table-border), inset 0 -1px 0 var(--pig-table-border);
         text-align: left;
         vertical-align: top;
         overflow-wrap: anywhere;
@@ -529,12 +532,21 @@
       }
 
       .pig-markdown-table-wrap tr:last-child td {
-        border-bottom: 0;
+        box-shadow: inset -1px 0 0 var(--pig-table-border);
+      }
+
+      .pig-markdown-table-wrap thead:last-child tr:last-child th {
+        box-shadow: inset -1px 0 0 var(--pig-table-border);
       }
 
       .pig-markdown-table-wrap th:last-child,
       .pig-markdown-table-wrap td:last-child {
-        border-right: 0;
+        box-shadow: inset 0 -1px 0 var(--pig-table-border);
+      }
+
+      .pig-markdown-table-wrap tbody tr:last-child td:last-child,
+      .pig-markdown-table-wrap thead:last-child tr:last-child th:last-child {
+        box-shadow: none;
       }
 
       .pig-markdown-table-wrap .is-align-center {
