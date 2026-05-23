@@ -248,10 +248,19 @@
 
   async function snapshot(args = {}) {
     const tab = await getActiveTab();
+    const requestedMaxItems = Number(args.maxItems);
+    const maxItems = Math.min(
+      Number.isFinite(requestedMaxItems) && requestedMaxItems > 0 ? requestedMaxItems : MAX_SNAPSHOT_ITEMS,
+      MAX_SNAPSHOT_ITEMS
+    );
     const result = await sendToTab(tab, {
       type: "dogeclawBrowserAction",
       action: "snapshot",
-      maxItems: Math.min(Number(args.maxItems) || MAX_SNAPSHOT_ITEMS, MAX_SNAPSHOT_ITEMS)
+      snapshotFormat: args.snapshotFormat || args.format || "compact",
+      scope: args.scope || args.snapshotScope || "viewport",
+      maxItems,
+      maxTextChars: args.maxTextChars,
+      includeUnchanged: args.includeUnchanged === true
     });
     return {
       tab: await currentTab(),
@@ -380,11 +389,16 @@
 
   async function scroll(args = {}) {
     const tab = await getActiveTab();
+    const x = Number(args.x);
+    const y = Number(args.y);
     return sendToTab(tab, {
       type: "dogeclawBrowserAction",
       action: "scroll",
-      x: Number(args.x) || 0,
-      y: Number(args.y) || 600
+      ref: args.ref || "",
+      selector: args.selector || "",
+      text: args.text || "",
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 600
     });
   }
 

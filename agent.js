@@ -3,7 +3,33 @@
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const DEFAULT_MAX_ITERATIONS = AGENT_CONFIG.maxIterations || 20;
   const DEFAULT_MAX_MESSAGES = AGENT_CONFIG.maxMessages || 20;
-  const DEFAULT_MAX_CONTENT_LENGTH = AGENT_CONFIG.maxContentLength || 8192;
+  const DEFAULT_MAX_CONTENT_LENGTH_RATIO = 0.5;
+
+  function getMaxContentLengthRatio() {
+    const configured = Number(AGENT_CONFIG.maxContentLengthRatio);
+    return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_MAX_CONTENT_LENGTH_RATIO;
+  }
+
+  function getFallbackContextWindowLimit() {
+    const llmConfig = globalThis.DogeclawConfig?.llm || {};
+    return Number(llmConfig.contextWindowDefault) || 32000;
+  }
+
+  function getSingleMessageMaxContentLength(model = "") {
+    const contextWindow = globalThis.DogeclawLLM?.getContextWindowLimit
+      ? DogeclawLLM.getContextWindowLimit(model)
+      : getFallbackContextWindowLimit();
+    return Math.max(1, Math.floor(contextWindow * getMaxContentLengthRatio()));
+  }
+
+  async function getCurrentSingleMessageMaxContentLength() {
+    try {
+      const config = await globalThis.DogeclawLLM?.getConfig?.();
+      return getSingleMessageMaxContentLength(config?.model || "");
+    } catch {
+      return getSingleMessageMaxContentLength();
+    }
+  }
 
   function normalizeContentPart(part) {
     if (part?.type === "text") {
@@ -148,14 +174,23 @@
     return message?.role === "tool" || (message?.role === "assistant" && getToolCallIds(message).length > 0);
   }
 
-  function compressMessages(messages, maxMessages = DEFAULT_MAX_MESSAGES) {
-    const normalized = normalizeHistory(messages).map((message) => ({
-      ...message,
-	      content:
-	        typeof message.content === "string" && message.content.length > DEFAULT_MAX_CONTENT_LENGTH
-	          ? `${message.content.slice(0, DEFAULT_MAX_CONTENT_LENGTH)}\n\n[truncated]`
-	          : message.content
-    }));
+  function isCompactBrowserSnapshotContent(content) {
+    const text = typeof content === "string" ? content : "";
+    return text.startsWith("Page ") && text.includes("Refs: use b* refs for click/type, r* refs for scrolling a region.");
+  }
+
+  function compressMessages(messages, maxMessages = DEFAULT_MAX_MESSAGES, maxContentLength = getSingleMessageMaxContentLength()) {
+    const singleMessageMaxLength = Math.max(1, Number(maxContentLength) || getSingleMessageMaxContentLength());
+    const normalized = normalizeHistory(messages).map((message) => {
+      const shouldLimitContent =
+        typeof message.content === "string" &&
+        message.content.length > singleMessageMaxLength &&
+        !isCompactBrowserSnapshotContent(message.content);
+      return {
+        ...message,
+        content: shouldLimitContent ? `${message.content.slice(0, singleMessageMaxLength)}\n\n[truncated]` : message.content
+      };
+    });
 
     if (normalized.length <= maxMessages) {
       return sanitizeToolMessageSequence(normalized);
@@ -177,8 +212,9 @@
     ];
   }
 
-  function createContext(history) {
-    let messages = compressMessages(history);
+  function createContext(history, options = {}) {
+    const maxContentLength = Math.max(1, Number(options.maxContentLength) || getSingleMessageMaxContentLength());
+    let messages = compressMessages(history, DEFAULT_MAX_MESSAGES, maxContentLength);
 
     return {
       add(message) {
@@ -191,7 +227,7 @@
         if (isToolMessageSequencePart(nextMessage)) {
           return;
         }
-        messages = compressMessages(messages);
+        messages = compressMessages(messages, DEFAULT_MAX_MESSAGES, maxContentLength);
       },
       getMessages() {
         return sanitizeToolMessageSequence(messages).slice();
@@ -218,13 +254,28 @@
     });
   }
 
+  function formatToolSuccessContent(toolCall, result) {
+    if (
+      toolCall?.name === "browser_control" &&
+      String(toolCall?.arguments?.action || "") === "snapshot" &&
+      result?.format === "compact" &&
+      typeof result.compact === "string"
+    ) {
+      return result.compact;
+    }
+    if (toolCall?.name === "browser_control" && result && typeof result === "object" && !Array.isArray(result)) {
+      return JSON.stringify(result.ok === undefined ? { ok: true, ...result } : result);
+    }
+    return JSON.stringify({ ok: true, result });
+  }
+
   async function executeToolCall(toolCall, toolContext = {}) {
     try {
       const result = await DogeclawTools.execute(toolCall.name, toolCall.arguments || {}, toolContext);
       return {
         role: "tool",
         tool_call_id: toolCall.id,
-        content: JSON.stringify({ ok: true, result })
+        content: formatToolSuccessContent(toolCall, result)
       };
     } catch (error) {
       return {
@@ -275,7 +326,8 @@
       throw new Error(t("llm.messageRequired"));
     }
 
-    const context = createContext(history);
+    const maxContentLength = await getCurrentSingleMessageMaxContentLength();
+    const context = createContext(history, { maxContentLength });
     context.add({ role: "user", content });
     let emptyReplyCount = 0;
     const toolSchemas = tools === false ? null : DogeclawTools.getSchemas();
@@ -326,7 +378,8 @@
       throw new Error(t("llm.messageRequired"));
     }
 
-    const context = createContext(history);
+    const maxContentLength = await getCurrentSingleMessageMaxContentLength();
+    const context = createContext(history, { maxContentLength });
     context.add({ role: "user", content });
     let emptyReplyCount = 0;
     const toolSchemas = tools === false ? null : DogeclawTools.getSchemas();

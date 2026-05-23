@@ -9,6 +9,9 @@ node_modules/
 dist/
 build/
 coverage/
+tests/snapshot-output*.json
+tests/snapshot-compact-output*
+tests/snapshot-compact-smoke*
 
 .env
 .env.*

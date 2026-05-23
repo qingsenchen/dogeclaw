@@ -165,7 +165,7 @@
     agent: {
       maxIterations: 20,
       maxMessages: 20,
-      maxContentLength: 8192
+      maxContentLengthRatio: 0.5
     }
   };
 
