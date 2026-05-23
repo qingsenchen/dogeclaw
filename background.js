@@ -57,6 +57,7 @@ let wechatLoginPollUntil = 0;
 let wechatLoginPollTimer = 0;
 let wechatLoginWaitRunning = false;
 const wechatUserConfigCache = new Map();
+const WECHAT_SESSION_TIMEOUT_ERRCODE = -14;
 
 function getLocalStorage() {
   const storage = PLATFORM.storage?.local;
@@ -515,11 +516,15 @@ async function runActiveChannelPoll() {
   }
 }
 
-async function shouldKeepFastChannelPolling() {
-  if (Date.now() < channelActivePollUntil) {
-    return true;
+function stopActiveChannelPolling() {
+  channelActivePollUntil = 0;
+  if (channelActivePollTimer) {
+    clearTimeout(channelActivePollTimer);
+    channelActivePollTimer = 0;
   }
+}
 
+async function hasEnabledWechatChannel() {
   try {
     const runtime = globalThis.DogeclawWechatChannel;
     const config = await runtime?.getConfig?.();
@@ -527,6 +532,10 @@ async function shouldKeepFastChannelPolling() {
   } catch {
     return false;
   }
+}
+
+async function shouldKeepFastChannelPolling() {
+  return hasEnabledWechatChannel();
 }
 
 async function getChannelHistory(channel, conversationId) {
@@ -567,6 +576,33 @@ async function markSeenChannelMessage(messageId) {
 function getUpdateList(payload) {
   const data = payload?.data || payload || {};
   return data.msgs || data.updates || data.messages || data.items || data.list || payload?.msgs || payload?.updates || [];
+}
+
+function isWechatSessionTimeoutPayload(payload) {
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+  return Number(payload?.errcode ?? data.errcode) === WECHAT_SESSION_TIMEOUT_ERRCODE;
+}
+
+async function disableWechatChannelAfterSessionTimeout(payload = {}) {
+  const runtime = globalThis.DogeclawWechatChannel;
+  stopActiveChannelPolling();
+  wechatNextPollTimeoutMs = WECHAT_DEFAULT_LONG_POLL_TIMEOUT_MS;
+  lastWechatPollMessageCount = 0;
+
+  if (runtime?.setConfig) {
+    await runtime.setConfig({
+      enabled: false,
+      token: ""
+    });
+  }
+  if (runtime?.setState) {
+    await runtime.setState({ getUpdatesBuf: "" });
+  }
+
+  await logChannelDebug("wechat session timeout; channel disabled", {
+    errcode: payload?.errcode,
+    errmsg: payload?.errmsg || ""
+  });
 }
 
 function normalizeWechatUpdate(update = {}) {
@@ -963,6 +999,10 @@ async function pollWechatChannel() {
     durationMs: Date.now() - startedAt,
     nextTimeoutMs: wechatNextPollTimeoutMs
   });
+  if (isWechatSessionTimeoutPayload(payload)) {
+    await disableWechatChannelAfterSessionTimeout(payload);
+    return false;
+  }
   for (const update of updates) {
     await handleWechatIncomingMessage(update);
   }

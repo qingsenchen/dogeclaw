@@ -256,7 +256,6 @@
 	        overflow-x: hidden;
 	        overflow-y: auto;
 	        -webkit-overflow-scrolling: touch;
-	        scrollbar-width: none;
 	        opacity: 0;
 	        pointer-events: none;
 	        cursor: default;
@@ -275,7 +274,11 @@
         transform-origin: top center;
       }
 
-      .pig-chat-messages::-webkit-scrollbar {
+      #${rootId} .pig-chat-messages {
+        scrollbar-width: none;
+      }
+
+      #${rootId} .pig-chat-messages::-webkit-scrollbar {
         display: none;
       }
 
@@ -283,20 +286,9 @@
         cursor: default;
       }
 
-      .pig-chat-messages.is-scrollable .pig-chat-bubble {
-        cursor: grab;
-        touch-action: none;
-      }
-
-      .pig-chat-messages.is-drag-scrolling,
-      .pig-chat-messages.is-drag-scrolling .pig-chat-bubble {
-        cursor: grabbing;
-        user-select: none;
-      }
-
 	      .pig-chat-messages.is-visible {
 	        opacity: 1;
-	        pointer-events: auto;
+	        pointer-events: none;
 	        transform: translateY(0) scale(1);
 	      }
 
@@ -371,6 +363,7 @@
         display: flex;
         flex: 0 0 auto;
         width: 100%;
+        pointer-events: none;
       }
 
       .pig-chat-row.is-left {
@@ -383,6 +376,7 @@
 
       .pig-chat-bubble {
         display: inline-block;
+        min-width: 0;
         max-width: min(220px, calc(100vw - 48px));
         padding: 8px 12px;
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -393,6 +387,7 @@
         font-weight: 500;
         line-height: 1.35;
         overflow-wrap: anywhere;
+        pointer-events: auto;
         white-space: normal;
       }
 
@@ -402,6 +397,12 @@
       }
 
       .pig-chat-bubble:has(.pig-markdown-table-wrap) {
+        width: fit-content;
+        max-width: min(220px, calc(100vw - 48px));
+      }
+
+      .pig-chat-bubble:has(pre) {
+        width: min(360px, calc(100vw - 48px));
         max-width: min(360px, calc(100vw - 48px));
       }
 
@@ -478,15 +479,72 @@
       }
 
       .pig-chat-bubble pre {
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        min-width: 0;
         max-width: 100%;
         padding: 8px;
         border-radius: 8px;
         background: rgba(255, 255, 255, 0.1);
         overflow-x: auto;
+        overflow-y: hidden;
         white-space: pre;
       }
 
+      #${rootId} .pig-chat-bubble pre,
+      #${rootId} .pig-markdown-table-wrap {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+      }
+
+      #${rootId} .pig-chat-bubble pre:hover,
+      #${rootId} .pig-chat-bubble pre:focus-within,
+      #${rootId} .pig-markdown-table-wrap:hover,
+      #${rootId} .pig-markdown-table-wrap:focus-within {
+        scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
+      }
+
+      #${rootId} .pig-chat-bubble pre::-webkit-scrollbar,
+      #${rootId} .pig-markdown-table-wrap::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      #${rootId} .pig-chat-bubble pre::-webkit-scrollbar-track,
+      #${rootId} .pig-markdown-table-wrap::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      #${rootId} .pig-chat-bubble pre::-webkit-scrollbar-thumb,
+      #${rootId} .pig-markdown-table-wrap::-webkit-scrollbar-thumb {
+        border: 2px solid transparent;
+        border-radius: 999px;
+        background: transparent;
+        background-clip: content-box;
+      }
+
+      #${rootId} .pig-chat-bubble pre:hover::-webkit-scrollbar-thumb,
+      #${rootId} .pig-chat-bubble pre:focus-within::-webkit-scrollbar-thumb,
+      #${rootId} .pig-markdown-table-wrap:hover::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.34);
+        background-clip: content-box;
+      }
+
+      #${rootId} .pig-markdown-table-wrap:focus-within::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.34);
+        background-clip: content-box;
+      }
+
+      #${rootId} .pig-chat-bubble pre::-webkit-scrollbar-corner,
+      #${rootId} .pig-markdown-table-wrap::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+
       .pig-chat-bubble pre code {
+        display: block;
+        width: max-content;
+        min-width: 100%;
         padding: 0;
         background: transparent;
       }
@@ -499,25 +557,49 @@
 
       .pig-markdown-table-wrap {
         --pig-table-border: rgba(255, 255, 255, 0.16);
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        min-width: 0;
         max-width: 100%;
         overflow-x: auto;
-        border: 1px solid var(--pig-table-border);
+        overflow-y: hidden;
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.04);
       }
 
       .pig-markdown-table-wrap table {
+        display: table !important;
         width: 100%;
-        min-width: 100%;
+        min-width: max(100%, calc(var(--pig-table-column-count, 1) * 72px));
+        overflow: hidden;
+        border: 1px solid var(--pig-table-border);
+        border-radius: 8px;
         border-collapse: separate;
         border-spacing: 0;
+        table-layout: fixed;
+        background: rgba(255, 255, 255, 0.04);
         color: #ffffff;
         font-size: 12px;
         line-height: 1.35;
       }
 
+      .pig-markdown-table-wrap thead {
+        display: table-header-group !important;
+      }
+
+      .pig-markdown-table-wrap tbody {
+        display: table-row-group !important;
+      }
+
+      .pig-markdown-table-wrap tr {
+        display: table-row !important;
+      }
+
       .pig-markdown-table-wrap th,
       .pig-markdown-table-wrap td {
+        display: table-cell !important;
+        min-width: 0;
+        width: auto;
         padding: 6px 8px;
         border: 0;
         box-shadow: inset -1px 0 0 var(--pig-table-border), inset 0 -1px 0 var(--pig-table-border);

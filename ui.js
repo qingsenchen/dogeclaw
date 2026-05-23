@@ -101,8 +101,9 @@
         })
         .join("");
 
+    const columnCount = Math.max(1, header.length);
     return [
-      '<div class="pig-markdown-table-wrap"><table>',
+      `<div class="pig-markdown-table-wrap"><table style="--pig-table-column-count: ${columnCount}">`,
       `<thead><tr>${renderCells(header, "th")}</tr></thead>`,
       bodyRows.length ? `<tbody>${bodyRows.map((row) => `<tr>${renderCells(row, "td")}</tr>`).join("")}</tbody>` : "",
       "</table></div>"

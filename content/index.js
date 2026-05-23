@@ -28,6 +28,7 @@
   const INPUT_IMAGE_COMPRESS_QUALITY = CONTENT_CONFIG.inputImageCompressQuality || 0.82;
   const INPUT_IMAGE_DATA_URL_MAX_LENGTH = CONTENT_CONFIG.inputImageDataUrlMaxLength || 1200000;
   const INPUT_IMAGES_TOTAL_DATA_URL_MAX_LENGTH = CONTENT_CONFIG.inputImagesTotalDataUrlMaxLength || 3600000;
+  const HOVER_INPUT_HISTORY_LIMIT = Math.max(1, Number(CONTENT_CONFIG.hoverInputHistoryLimit) || 20);
   const INPUT_IMAGE_DRAG_RESET_MS = 900;
   const IMAGE_FILE_EXTENSION_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i;
   const DATA_IMAGE_MARKDOWN_RE = /!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/;
@@ -183,14 +184,6 @@
     },
 	    hoverUserScrolled: false,
 	    hoverScrollToBottomRequested: false,
-    hoverScrollDrag: {
-      active: false,
-      moved: false,
-      suppressClick: false,
-      pointerId: null,
-      startY: 0,
-      startScrollTop: 0
-    },
     commandMenu: {
       visible: false,
       query: "",
@@ -201,6 +194,9 @@
 	    chatCollapseTimer: 0,
 	    chatHoldExpanded: false,
 	    inputImages: [],
+    hoverInputHistory: [],
+    hoverInputHistoryIndex: -1,
+    hoverInputHistoryDraft: "",
 	    navigationInProgress: false,
 	    navigationResetTimer: 0,
 	    llmConfig: {
@@ -1142,7 +1138,7 @@
 
     if (elements?.hoverMessages) {
       elements.hoverMessages.hidden = true;
-      elements.hoverMessages.classList.remove("is-visible", "is-collapsing", "is-scrollable", "is-drag-scrolling");
+      elements.hoverMessages.classList.remove("is-visible", "is-collapsing", "is-scrollable");
     }
     elements.buttonHoverInput?.blur?.();
     scheduleSync();
@@ -1690,11 +1686,72 @@
   }
 
   function handleHoverInputChange(event) {
+    resetHoverInputHistoryNavigation();
     updateSlashCommandMenuFromInput(event.currentTarget?.value || "");
   }
 
   function handleHoverInputFocus(event) {
     updateSlashCommandMenuFromInput(event.currentTarget?.value || "");
+  }
+
+  function resetHoverInputHistoryNavigation() {
+    state.hoverInputHistoryIndex = -1;
+    state.hoverInputHistoryDraft = "";
+  }
+
+  function recordHoverInputHistory(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      resetHoverInputHistoryNavigation();
+      return;
+    }
+
+    const nextHistory = state.hoverInputHistory.filter((item) => item !== text);
+    nextHistory.push(text);
+    state.hoverInputHistory = nextHistory.slice(-Math.max(1, HOVER_INPUT_HISTORY_LIMIT));
+    resetHoverInputHistoryNavigation();
+  }
+
+  function setHoverInputHistoryValue(input, value) {
+    input.value = String(value || "");
+    updateSlashCommandMenuFromInput(input.value);
+    window.requestAnimationFrame(() => {
+      input.focus();
+      const end = input.value.length;
+      input.setSelectionRange(end, end);
+    });
+  }
+
+  function navigateHoverInputHistory(input, direction) {
+    const history = state.hoverInputHistory;
+    if (!input || !history.length) {
+      return false;
+    }
+
+    if (direction < 0) {
+      if (state.hoverInputHistoryIndex < 0) {
+        state.hoverInputHistoryDraft = input.value;
+        state.hoverInputHistoryIndex = history.length - 1;
+      } else {
+        state.hoverInputHistoryIndex = Math.max(0, state.hoverInputHistoryIndex - 1);
+      }
+      setHoverInputHistoryValue(input, history[state.hoverInputHistoryIndex] || "");
+      return true;
+    }
+
+    if (state.hoverInputHistoryIndex < 0) {
+      return false;
+    }
+
+    if (state.hoverInputHistoryIndex < history.length - 1) {
+      state.hoverInputHistoryIndex += 1;
+      setHoverInputHistoryValue(input, history[state.hoverInputHistoryIndex] || "");
+    } else {
+      const draft = state.hoverInputHistoryDraft;
+      resetHoverInputHistoryNavigation();
+      setHoverInputHistoryValue(input, draft);
+    }
+    return true;
   }
 
   function renderSlashCommandMenu() {
@@ -1916,107 +1973,6 @@
     const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
     scroller.classList.toggle("is-scrollable", maxScrollTop > 2);
     state.hoverUserScrolled = maxScrollTop > 2 && maxScrollTop - scroller.scrollTop > 24;
-  }
-
-  function isInteractiveHoverScrollTarget(target) {
-    return Boolean(
-      target?.closest?.(
-        'a, button, input, textarea, select, option, label, [contenteditable="true"], [role="button"], .pig-config-button, .pig-config-input'
-      )
-    );
-  }
-
-  function stopHoverScrollDrag(event = null) {
-    const drag = state.hoverScrollDrag;
-    if (!drag.active) {
-      return;
-    }
-
-    if (event?.currentTarget?.releasePointerCapture && event.pointerId === drag.pointerId) {
-      try {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      } catch {}
-    }
-
-    drag.active = false;
-    drag.pointerId = null;
-    elements.hoverMessages?.classList.remove("is-drag-scrolling");
-  }
-
-  function handleHoverMessagesPointerDown(event) {
-    const scroller = elements?.hoverMessages;
-    const bubble = event.target?.closest?.(".pig-chat-bubble");
-    if (!scroller || scroller.hidden || !bubble || !scroller.contains(bubble) || isInteractiveHoverScrollTarget(event.target)) {
-      return;
-    }
-
-    if (event.pointerType === "mouse" && event.button !== 0) {
-      return;
-    }
-
-    const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-    if (maxScrollTop <= 2) {
-      return;
-    }
-
-    const drag = state.hoverScrollDrag;
-    drag.active = true;
-    drag.moved = false;
-    drag.pointerId = event.pointerId;
-    drag.startY = event.clientY;
-    drag.startScrollTop = scroller.scrollTop;
-    try {
-      event.currentTarget?.setPointerCapture?.(event.pointerId);
-    } catch {}
-  }
-
-  function handleHoverMessagesPointerMove(event) {
-    const drag = state.hoverScrollDrag;
-    const scroller = elements?.hoverMessages;
-    if (!drag.active || !scroller || event.pointerId !== drag.pointerId) {
-      return;
-    }
-
-    const deltaY = event.clientY - drag.startY;
-    if (!drag.moved && Math.abs(deltaY) < DRAG_START_THRESHOLD) {
-      return;
-    }
-
-    drag.moved = true;
-    drag.suppressClick = true;
-    scroller.classList.add("is-drag-scrolling");
-
-    const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-    scroller.scrollTop = Math.min(maxScrollTop, Math.max(0, drag.startScrollTop - deltaY));
-    state.hoverUserScrolled = maxScrollTop > 2 && maxScrollTop - scroller.scrollTop > 24;
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  function handleHoverMessagesPointerUp(event) {
-    const drag = state.hoverScrollDrag;
-    if (!drag.active || event.pointerId !== drag.pointerId) {
-      return;
-    }
-
-    if (drag.moved) {
-      event.preventDefault();
-      event.stopPropagation();
-      window.setTimeout(() => {
-        state.hoverScrollDrag.suppressClick = false;
-      }, 80);
-    }
-    stopHoverScrollDrag(event);
-  }
-
-  function handleHoverMessagesClick(event) {
-    if (!state.hoverScrollDrag.suppressClick) {
-      return;
-    }
-
-    state.hoverScrollDrag.suppressClick = false;
-    event.preventDefault();
-    event.stopPropagation();
   }
 
   function addHoverMessage(message, side = "right", options = {}) {
@@ -2413,6 +2369,8 @@
 
     const content = value.length > 12000 ? `${value.slice(0, 12000)}\n\n${t("chat.contentTruncated")}` : value;
     elements.buttonHoverInput.value = content;
+    resetHoverInputHistoryNavigation();
+    updateSlashCommandMenuFromInput(content);
     window.requestAnimationFrame(() => {
       elements.buttonHoverInput.focus();
       elements.buttonHoverInput.setSelectionRange(content.length, content.length);
@@ -3034,6 +2992,19 @@
       return;
     }
 
+    const input = event.currentTarget;
+    if (event.key === "ArrowUp" && navigateHoverInputHistory(input, -1)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (event.key === "ArrowDown" && navigateHoverInputHistory(input, 1)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (event.key !== "Enter" || event.isComposing) {
       return;
     }
@@ -3041,9 +3012,8 @@
     event.preventDefault();
     event.stopPropagation();
 
-	    const input = event.currentTarget;
-	    const value = input.value.trim();
-	    const images = normalizeInputImages(state.inputImages);
+		    const value = input.value.trim();
+		    const images = normalizeInputImages(state.inputImages);
 	    if (!value && !images.length) {
 	      return;
 	    }
@@ -3056,9 +3026,10 @@
       return;
     }
 
-	    input.value = "";
-	    state.inputImages = [];
-	    renderInputImageState();
+    recordHoverInputHistory(value);
+		    input.value = "";
+		    state.inputImages = [];
+		    renderInputImageState();
 	    await sendTextToDogeclaw(value, images);
 	  }
 
@@ -3480,11 +3451,6 @@
     buttonIconWrap.addEventListener("pointerup", onPointerUp);
     buttonIconWrap.addEventListener("pointercancel", onPointerUp);
     hoverMessages.addEventListener("scroll", handleHoverMessagesScroll, { passive: true });
-    hoverMessages.addEventListener("pointerdown", handleHoverMessagesPointerDown);
-    hoverMessages.addEventListener("pointermove", handleHoverMessagesPointerMove);
-    hoverMessages.addEventListener("pointerup", handleHoverMessagesPointerUp);
-	    hoverMessages.addEventListener("pointercancel", stopHoverScrollDrag);
-	    hoverMessages.addEventListener("click", handleHoverMessagesClick, true);
     inputImageButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
