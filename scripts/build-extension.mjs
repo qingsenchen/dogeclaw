@@ -28,6 +28,7 @@ const extensionEntries = [
   "i18n.js",
   "llm.js",
   "pet.js",
+  "scheduler.js",
   "skills",
   "skills.js",
   "tools.js",

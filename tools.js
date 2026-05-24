@@ -219,6 +219,212 @@
           required: ["action"]
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "scheduled_task",
+        description:
+          "管理 dogeclaw 后台定时任务。把用户的自然语言意图转换成结构化 job/schedule/selector；运行时只接受 canonical 枚举，不做同义词猜测。创建提醒用 create；查看用 list/get；修改用 update；暂停/恢复用 pause/resume；立即执行用 run；查看执行记录用 runs/history；删除用 delete + selector。不要要求用户提供任务 ID；如果 pause/resume/run/update 需要 id，先 list 并用任务名称、类型、状态或关键词在结果中定位。用户说“X 分钟后/稍后/提醒我一次”必须创建 once；只有明确说“每 X 分钟/重复/循环/周期性”才创建 interval。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: {
+              type: "string",
+              enum: ["list", "get", "create", "update", "delete", "pause", "resume", "run", "history", "runs", "refresh"],
+              description: "操作类型。create 创建任务；list/get 查看；update 修改；pause/resume 开关任务；run 手动执行一次；runs/history 查看执行记录；delete 按 selector 删除；refresh 重新同步 alarms。"
+            },
+            id: {
+              type: "string",
+              description: "内部任务 ID，仅在已经从 list/get 结果中拿到时用于 get/update/pause/resume/run/history；不要向用户索要 ID。"
+            },
+            name: {
+              type: "string",
+              description: "任务显示名称。create/update 可用；delete 时请使用 selector.name。"
+            },
+            selector: {
+              type: "object",
+              description: "delete 的结构化选择器。由 LLM 把“全部、同类型、暂停/暂时、吃饭相关”等自然语言映射成 canonical 字段；不要传原始中文状态词，不要让用户输入 ID。常用：{scope:\"all\"}；{scope:\"matching\", scheduleKind:\"once\"}；{scope:\"matching\", status:\"paused\"}；{scope:\"matching\", query:\"吃饭\"}；{scope:\"one\", name:\"提醒吃饭\"}。",
+              properties: {
+                scope: {
+                  type: "string",
+                  enum: ["one", "matching", "all"],
+                  description: "删除范围。one=必须唯一匹配；matching=删除所有匹配条件；all=删除所有任务。"
+                },
+                name: {
+                  type: "string",
+                  description: "按任务名称匹配；通常配合 scope=one。"
+                },
+                query: {
+                  type: "string",
+                  description: "按任务名称或 prompt 关键词匹配；删除同主题多任务时配合 scope=matching。"
+                },
+                scheduleKind: {
+                  type: "string",
+                  enum: ["once", "interval", "daily", "weekly"],
+                  description: "按计划类型过滤。一次性/单次/几分钟后 => once；周期/每隔 N 分钟 => interval；每天 => daily；每周 => weekly。"
+                },
+                enabled: {
+                  type: "boolean",
+                  description: "按启用状态过滤；通常用 status=paused 表达暂停任务。"
+                },
+                lastStatus: {
+                  type: "string",
+                  enum: ["succeeded", "failed", "running", "skipped", "timed_out"],
+                  description: "按最近一次 run 的执行状态过滤。"
+                },
+                status: {
+                  type: "string",
+                  enum: ["enabled", "paused", "succeeded", "failed", "running", "skipped", "timed_out"],
+                  description: "按任务/最近执行状态过滤。暂停、暂时、原 tab 不可达这类用户表达应映射为 paused。"
+                },
+                pauseReasonCode: {
+                  type: "string",
+                  description: "按暂停原因代码过滤；原 tab 不可达为 notification_target_unavailable。"
+                },
+                pauseReasonQuery: {
+                  type: "string",
+                  description: "按暂停原因文本关键词过滤。"
+                },
+                deleteAfterRun: {
+                  type: "boolean",
+                  description: "按执行后是否自动删除过滤。"
+                }
+              }
+            },
+            prompt: {
+              type: "string",
+              description: "任务触发时交给 agent 的指令。create 必填；也可放在 payload.prompt。"
+            },
+            payload: {
+              type: "object",
+              description: "任务执行载荷。当前只支持 agent_turn；简单场景优先使用顶层 prompt。",
+              properties: {
+                kind: {
+                  type: "string",
+                  enum: ["agent_turn"],
+                  description: "执行类型，目前固定为 agent_turn。"
+                },
+                prompt: {
+                  type: "string",
+                  description: "任务触发时交给 agent 的指令。"
+                },
+                modelOverride: {
+                  type: "string",
+                  description: "可选模型覆盖。"
+                },
+                timeoutMs: {
+                  type: "number",
+                  description: "可选执行超时毫秒数。"
+                }
+              }
+            },
+            delivery: {
+              type: "object",
+              description: "执行结果投递设置。默认从当前页面创建 chat/tab 投递；notify=false 或 delivery.mode=none 表示不投递。原 tab 不可达时 scheduler 会暂停任务并记录原因，不会找其他页面兜底。",
+              properties: {
+                mode: {
+                  type: "string",
+                  enum: ["chat", "none"],
+                  description: "chat=把结果发送到原聊天；none=不发送聊天提醒。"
+                },
+                target: {
+                  type: "object",
+                  description: "投递目标。通常由运行时根据当前页面自动填充，不需要用户提供。",
+                  properties: {
+                    kind: {
+                      type: "string",
+                      enum: ["tab"],
+                      description: "目标类型，目前支持 tab。"
+                    },
+                    tabId: {
+                      type: "number",
+                      description: "目标标签页 ID。"
+                    },
+                    url: {
+                      type: "string",
+                      description: "目标标签页 URL，仅用于记录和校验。"
+                    }
+                  }
+                },
+                unavailablePolicy: {
+                  type: "string",
+                  enum: ["pause"],
+                  description: "目标不可达策略，目前固定为 pause。"
+                }
+              }
+            },
+            enabled: {
+              type: "boolean",
+              description: "任务是否启用。create/update 可选，默认启用。"
+            },
+            reason: {
+              type: "string",
+              description: "pause 或 enabled=false 时记录的暂停原因。"
+            },
+            deleteAfterRun: {
+              type: "boolean",
+              description: "计划触发完成后是否删除任务记录。once 默认 true；其他计划默认 false。"
+            },
+            keepRuns: {
+              type: "boolean",
+              description: "delete 时是否保留 run history，默认 false。"
+            },
+            limit: {
+              type: "number",
+              description: "runs/history 返回的执行记录数量。"
+            },
+            full: {
+              type: "boolean",
+              description: "runs/history 是否返回完整输出内容，默认 false。"
+            },
+            schedule: {
+              type: "object",
+              description: "任务计划。由 LLM 将用户时间表达映射为 canonical schedule；daily/weekly 当前按浏览器本地时区解释。",
+              properties: {
+                kind: {
+                  type: "string",
+                  enum: ["once", "interval", "daily", "weekly"],
+                  description: "计划类型。once=单次/几分钟后/某个时间点；interval=每隔一段时间重复；daily=每日；weekly=每周。"
+                },
+                runAt: {
+                  type: "string",
+                  description: "once 的绝对触发时间，ISO 字符串。"
+                },
+                delayMinutes: {
+                  type: "number",
+                  description: "once 的相对延迟分钟数。用户说“1 分钟后/10 分钟后”时用 delayMinutes，不要用 everyMinutes。"
+                },
+                everyMinutes: {
+                  type: "number",
+                  description: "interval 的重复间隔分钟数，当前最小 1。仅当用户明确要求“每 N 分钟/重复/周期性”时使用。"
+                },
+                startAt: {
+                  type: "string",
+                  description: "interval 可选首次运行 ISO 时间。"
+                },
+                timeOfDay: {
+                  type: "string",
+                  description: "daily/weekly 使用的本地时间，HH:MM。"
+                },
+                weekdays: {
+                  type: "array",
+                  items: {
+                    type: "number"
+                  },
+                  description: "weekly 使用，0=周日，1=周一，...，6=周六。"
+                },
+                timezone: {
+                  type: "string",
+                  description: "记录用途的时区名；当前计算仍使用浏览器本地时间。"
+                }
+              },
+              required: ["kind"]
+            }
+          },
+          required: ["action"]
+        }
+      }
     }
   ];
   const OPTIONAL_TOOL_NAMES = new Set(["curl"]);
@@ -878,6 +1084,13 @@
 
     if (name === "channel_config") {
       return executeChannelConfig(args);
+    }
+
+    if (name === "scheduled_task") {
+      if (!globalThis.DogeclawScheduler?.execute) {
+        throw new Error(t("scheduler.runtimeUnavailable"));
+      }
+      return DogeclawScheduler.execute(args, context);
     }
 
     throw new Error(t("tool.unknown", { tool: name || t("common.empty") }));

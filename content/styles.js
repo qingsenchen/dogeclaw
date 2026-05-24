@@ -814,12 +814,27 @@
         gap: 8px;
       }
 
+      .pig-task-config-form {
+        display: grid;
+        gap: 8px;
+      }
+
       .pig-skill-config-body {
         display: grid;
         gap: 8px;
       }
 
+      .pig-task-config-body {
+        display: grid;
+        gap: 8px;
+      }
+
       .pig-skill-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .pig-task-list {
         display: grid;
         gap: 6px;
       }
@@ -833,6 +848,22 @@
         padding: 7px;
         border-radius: 10px;
         background: rgba(255, 255, 255, 0.07);
+      }
+
+      .pig-task-item {
+        box-sizing: border-box;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        min-height: 54px;
+        padding: 7px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .pig-task-item.is-paused {
+        background: rgba(255, 255, 255, 0.045);
       }
 
       .pig-skill-icon {
@@ -855,7 +886,21 @@
         min-width: 0;
       }
 
+      .pig-task-text {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+      }
+
       .pig-skill-name {
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
+      .pig-task-name {
         color: #ffffff;
         font-size: 12px;
         font-weight: 700;
@@ -869,6 +914,26 @@
         font-size: 12px;
         line-height: 1.35;
         overflow-wrap: anywhere;
+      }
+
+      .pig-task-description,
+      .pig-task-meta,
+      .pig-task-hint {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 12px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+
+      .pig-task-meta {
+        color: rgba(255, 255, 255, 0.54);
+      }
+
+      .pig-task-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
       }
 
       .pig-skill-switch {

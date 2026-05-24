@@ -14,7 +14,10 @@
       wechatStateKey: "dogeclaw-channel-wechat-state",
       wechatLoginKey: "dogeclaw-channel-wechat-login",
       channelHistoryKey: "dogeclaw-channel-history",
-      channelSeenKey: "dogeclaw-channel-seen"
+      channelSeenKey: "dogeclaw-channel-seen",
+      scheduledTaskStoreKey: "dogeclaw-scheduled-tasks",
+      scheduledTaskStateStoreKey: "dogeclaw-scheduled-task-states",
+      scheduledTaskRunStoreKey: "dogeclaw-scheduled-task-runs"
     },
     content: {
       rootId: "dogeclaw-root",
@@ -56,6 +59,17 @@
       loginPollInitialDelayMs: 1200,
       loginPollIntervalMs: 2500,
       minLongPollTimeoutMs: 5000
+    },
+    scheduler: {
+      alarmPrefix: "dogeclaw-scheduled-task:",
+      maxTasks: 64,
+      maxNameLength: 120,
+      maxPromptLength: 16000,
+      maxRunContentLength: 4000,
+      runHistoryLimit: 50,
+      minIntervalMinutes: 1,
+      minAlarmDelayMs: 1000,
+      wakeupLeewayMs: 15000
     },
     llm: {
       timeoutMs: 120000,

@@ -56,6 +56,8 @@ let lastWechatPollMessageCount = 0;
 let wechatLoginPollUntil = 0;
 let wechatLoginPollTimer = 0;
 let wechatLoginWaitRunning = false;
+let scheduledTaskNotificationsAttached = false;
+let scheduledTaskNotificationQueue = Promise.resolve();
 const wechatUserConfigCache = new Map();
 const WECHAT_SESSION_TIMEOUT_ERRCODE = -14;
 
@@ -296,6 +298,119 @@ async function sendAgentUpdateToTab(tabId, payload) {
   } catch {}
 }
 
+function getScheduledTaskReplyId(run = {}) {
+  return `scheduled-task:${String(run.id || Date.now())}`;
+}
+
+function formatScheduledTaskNotification(event = {}) {
+  const task = event.task || {};
+  const run = event.run || {};
+  const name = String(task.name || run.taskName || t("scheduler.defaultTaskName"));
+
+  if (event.type === "run_started") {
+    return {
+      text: t("scheduler.notificationStarted", { name }),
+      pending: true
+    };
+  }
+
+  if (event.type === "run_failed") {
+    return {
+      text: t("scheduler.notificationFailed", { name, error: run.error || t("llm.requestFailed") }),
+      pending: false
+    };
+  }
+
+  const content = String(run.content || "").trim() || t("agent.done");
+  return {
+    text: content,
+    pending: false,
+    usage: run.usage || null
+  };
+}
+
+async function getScheduledTaskNotificationTabs(event = {}) {
+  const delivery = event.task?.delivery || null;
+  if (delivery?.mode && delivery.mode !== "chat") {
+    return [];
+  }
+
+  const target = delivery?.target || event.task?.notificationTarget || null;
+  const targetTabId = Number(target?.tabId || 0);
+  if (target?.kind === "tab" && Number.isInteger(targetTabId) && targetTabId > 0 && PLATFORM.tabs?.get) {
+    try {
+      const tab = await PLATFORM.tabs.get(targetTabId);
+      if (tab?.id && canToggleFloatingButton(tab.url || "")) {
+        return [tab];
+      }
+    } catch {}
+  }
+
+  if (target?.kind === "tab") {
+    return [];
+  }
+  return [];
+}
+
+async function sendScheduledTaskNotification(event = {}) {
+  const run = event.run || {};
+  if (!run.id || run.reason === "manual") {
+    return;
+  }
+
+  const tabs = await getScheduledTaskNotificationTabs(event);
+  if (!tabs.length) {
+    return;
+  }
+
+  const replyId = getScheduledTaskReplyId(run);
+  const notification = formatScheduledTaskNotification(event);
+  await Promise.all(tabs.map(async (tab) => {
+    try {
+      await setFloatingButtonEnabled(tab.url, true);
+      await ensureContentScriptInjected(tab.id);
+      await patchTabConversationMessage(tab.id, replyId, {
+        text: notification.text,
+        pending: notification.pending,
+        source: "scheduler",
+        includeInHistory: true,
+        usage: notification.usage || null
+      });
+      await sendAgentUpdateToTab(tab.id, {
+        replyId,
+        text: notification.text,
+        pending: notification.pending,
+        usage: notification.usage || null,
+        source: "scheduler"
+      });
+      await setActionToggleBadge(tab.id, true);
+    } catch (error) {
+      console.warn("Failed to send scheduled task notification:", error);
+    }
+  }));
+}
+
+function attachScheduledTaskNotifications() {
+  if (scheduledTaskNotificationsAttached) {
+    return;
+  }
+  const runtime = globalThis.DogeclawScheduler;
+  if (!runtime?.onEvent) {
+    return;
+  }
+  runtime.onEvent((event) => {
+    if (!["run_started", "run_completed", "run_failed"].includes(event?.type)) {
+      return;
+    }
+    scheduledTaskNotificationQueue = scheduledTaskNotificationQueue
+      .then(() => sendScheduledTaskNotification(event))
+      .catch((error) => {
+        console.warn("Failed to process scheduled task notification:", error);
+      });
+  });
+  scheduledTaskNotificationsAttached = true;
+}
+
 async function logChannelDebug(event, details = {}) {
   console.log(`[dogeclaw wechat] ${event}`, details);
 }
@@ -381,6 +496,13 @@ function startChannelPolling() {
     periodInMinutes: CHANNEL_ALARM_PERIOD_MINUTES
   })?.catch?.((error) => console.warn("Failed to start channel polling:", error));
   logChannelDebug("alarm scheduled", { periodInMinutes: CHANNEL_ALARM_PERIOD_MINUTES });
+}
+
+function startScheduledTasks() {
+  attachScheduledTaskNotifications();
+  globalThis.DogeclawScheduler?.start?.()?.catch?.((error) => {
+    console.warn("Failed to start scheduled tasks:", error);
+  });
 }
 
 function kickChannelPolling(durationMs = CHANNEL_DEFAULT_ACTIVE_POLL_DURATION_MS) {
@@ -1036,11 +1158,13 @@ async function pollChannels() {
 PLATFORM.runtime?.onInstalled?.addListener((details) => {
   createContextMenus();
   startChannelPolling();
+  startScheduledTasks();
 });
 
 PLATFORM.runtime?.onStartup?.addListener(() => {
   createContextMenus();
   startChannelPolling();
+  startScheduledTasks();
 });
 
 if (PLATFORM.alarms?.onAlarm) {
@@ -1054,6 +1178,7 @@ if (PLATFORM.alarms?.onAlarm) {
 
 createContextMenus();
 startChannelPolling();
+startScheduledTasks();
 kickChannelPolling(CHANNEL_DEFAULT_ACTIVE_POLL_DURATION_MS);
 
 PLATFORM.action?.onClicked?.addListener(async (tab) => {
@@ -1229,6 +1354,22 @@ PLATFORM.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "scheduledTask") {
+    const runtime = globalThis.DogeclawScheduler;
+    if (!runtime?.execute) {
+      sendResponse({ ok: false, error: t("scheduler.runtimeUnavailable") });
+      return false;
+    }
+    runtime.execute({
+      action: message.action,
+      id: message.id,
+      ...(message.payload || {})
+    })
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+    return true;
+  }
+
   if (message?.type === "skillConfig") {
     const runtime = globalThis.DogeclawSkills;
     if (!runtime?.listSkills || !runtime?.setSkillEnabled) {
@@ -1298,6 +1439,7 @@ PLATFORM.runtime?.onConnect?.addListener((port) => {
   const tabId = getSenderTabId(port.sender);
   const toolContext = {
     tabId,
+    tabUrl: port.sender?.tab?.url || "",
     keepRunningAfterDisconnect: false
   };
 

@@ -36,7 +36,8 @@
   const SLASH_COMMAND_IDS = {
     NEW: "new",
     MODEL: "model",
-    SKILLS: "skills"
+    SKILLS: "skills",
+    TASKS: "tasks"
   };
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
   const INSTANCE_KEY = "__dogeclawContentInstance";
@@ -230,6 +231,13 @@
       error: "",
       skills: []
     },
+    taskConfig: {
+      visible: false,
+      loading: false,
+      savingId: "",
+      error: "",
+      tasks: []
+    },
     thinkingActive: false,
     contextUsage: {
       usage: null,
@@ -284,6 +292,11 @@
         id: SLASH_COMMAND_IDS.SKILLS,
         name: "/skills",
         description: t("command.skills.description")
+      },
+      {
+        id: SLASH_COMMAND_IDS.TASKS,
+        name: "/tasks",
+        description: t("command.tasks.description")
       }
     ];
   }
@@ -876,6 +889,11 @@
       return t("tool.system", { action });
     }
 
+    if (toolName === "scheduled_task") {
+      const action = args.action ? ` ${args.action}` : "";
+      return t("tool.schedule", { action });
+    }
+
     return t("tool.running", { tool: toolName });
   }
 
@@ -935,6 +953,7 @@
       !state.commandMenu.visible &&
       !state.llmConfig.visible &&
       !state.skillConfig.visible &&
+      !state.taskConfig.visible &&
       !state.channelConfig.visible
     ) {
       collapseTransientChat();
@@ -1186,6 +1205,7 @@
     state.llmConfig.visible = activePanel === "llm";
     state.channelConfig.visible = activePanel === "channel";
     state.skillConfig.visible = activePanel === "skill";
+    state.taskConfig.visible = activePanel === "task";
   }
 
   function openConfigPanel(panel) {
@@ -1205,6 +1225,9 @@
     }
     if (!activePanel || activePanel === "skill") {
       state.skillConfig.visible = false;
+    }
+    if (!activePanel || activePanel === "task") {
+      state.taskConfig.visible = false;
     }
   }
 
@@ -1227,6 +1250,14 @@
 
   function closeSkillConfigForm() {
     closeConfigPanel("skill");
+    restoreChatRecordsAfterConfig();
+    renderHoverMessages();
+    scheduleSync();
+    scheduleTabConversationPersist();
+  }
+
+  function closeTaskConfigForm() {
+    closeConfigPanel("task");
     restoreChatRecordsAfterConfig();
     renderHoverMessages();
     scheduleSync();
@@ -1412,6 +1443,74 @@
       state.skillConfig.error = error?.message || String(error);
     }
     state.skillConfig.loading = false;
+    renderHoverMessages();
+    scheduleSync();
+    return true;
+  }
+
+  async function refreshTaskConfig() {
+    const response = await safeSendRuntimeMessage({
+      type: "scheduledTask",
+      action: "list"
+    });
+    if (!response?.ok) {
+      throw new Error(response?.error || t("task.readFailed"));
+    }
+    state.taskConfig.tasks = Array.isArray(response.result?.tasks) ? response.result.tasks : [];
+    return state.taskConfig.tasks;
+  }
+
+  async function runTaskConfigAction(task, action, payload = {}) {
+    const taskId = String(task?.id || "").trim();
+    if (!taskId) {
+      return;
+    }
+
+    state.taskConfig.savingId = `${action}:${taskId}`;
+    state.taskConfig.error = "";
+    renderHoverMessages();
+
+    const response = await safeSendRuntimeMessage({
+      type: "scheduledTask",
+      action,
+      id: taskId,
+      payload
+    });
+
+    if (!response?.ok) {
+      state.taskConfig.savingId = "";
+      state.taskConfig.error = response?.error || t("task.saveFailed");
+      renderHoverMessages();
+      return;
+    }
+
+    try {
+      await refreshTaskConfig();
+    } catch (error) {
+      state.taskConfig.error = error?.message || String(error);
+    }
+    state.taskConfig.savingId = "";
+    renderHoverMessages();
+    scheduleSync();
+  }
+
+  async function toggleTaskEnabled(task, enabled) {
+    await runTaskConfigAction(task, enabled ? "resume" : "pause", enabled ? {} : { reason: t("task.pauseReasonUser") });
+  }
+
+  async function showTaskConfigForm() {
+    openConfigPanel("task");
+    state.taskConfig.loading = true;
+    state.taskConfig.error = "";
+    setFloatingButtonVisible(true);
+    ensureUiMounted();
+    renderHoverMessages();
+    try {
+      await refreshTaskConfig();
+    } catch (error) {
+      state.taskConfig.error = error?.message || String(error);
+    }
+    state.taskConfig.loading = false;
     renderHoverMessages();
     scheduleSync();
     return true;
@@ -1638,6 +1737,11 @@
       return true;
     }
 
+    if (commandId === SLASH_COMMAND_IDS.TASKS) {
+      await showTaskConfigForm();
+      return true;
+    }
+
     renderHoverMessages();
     scheduleSync();
     return false;
@@ -1818,6 +1922,12 @@
         onToggle: toggleSkillEnabled,
         onClose: closeSkillConfigForm
       });
+    } else if (state.taskConfig.visible) {
+      componentRow = window.DogeclawUI.renderTaskConfigForm({
+        state,
+        onToggle: toggleTaskEnabled,
+        onClose: closeTaskConfigForm
+      });
     } else if (state.channelConfig.visible) {
       componentRow = window.DogeclawUI.renderChannelConfigForm({
         state,
@@ -1836,7 +1946,7 @@
       : -1;
     let componentInserted = false;
 
-    if (state.commandMenu.visible || state.llmConfig.visible || state.skillConfig.visible) {
+    if (state.commandMenu.visible || state.llmConfig.visible || state.skillConfig.visible || state.taskConfig.visible) {
       elements.hoverMessages.append(componentRow);
       componentInserted = true;
     } else {
@@ -1866,6 +1976,7 @@
       state.commandMenu.visible ||
       state.llmConfig.visible ||
       state.skillConfig.visible ||
+      state.taskConfig.visible ||
       state.channelConfig.visible ||
       ((state.chatVisible || state.hoverMessages.some((message) => message.pending)) && state.hoverMessages.length > 0);
     if (visible) {
@@ -1892,6 +2003,7 @@
         !state.commandMenu.visible &&
         !state.llmConfig.visible &&
         !state.skillConfig.visible &&
+        !state.taskConfig.visible &&
         !state.channelConfig.visible &&
         !state.chatVisible &&
         !state.hoverMessages.some((message) => message.pending)
@@ -2143,7 +2255,7 @@
       id: replyId,
       pending: Boolean(payload.pending),
       sessionId: state.pageConversationId,
-      source: "page"
+      source: String(payload.source || "page")
     });
     return true;
   }
@@ -2252,6 +2364,10 @@
     event?.stopPropagation?.();
     activeReplyStop();
     return true;
+  }
+
+  function stopDogeclawUiPropagation(event) {
+    event?.stopPropagation?.();
   }
 
   async function requestPetReply(message, history) {
@@ -3134,6 +3250,23 @@
     button.className = "pig-floating-button";
     button.style.setProperty("--pig-chat-button-gap", `${CHAT_MESSAGES_BUTTON_GAP}px`);
     button.title = t("chat.dragHint");
+    [
+      "keydown",
+      "keypress",
+      "keyup",
+      "beforeinput",
+      "input",
+      "compositionstart",
+      "compositionupdate",
+      "compositionend",
+      "paste",
+      "cut",
+      "copy",
+      "focusin",
+      "focusout"
+    ].forEach((eventName) => {
+      root.addEventListener(eventName, stopDogeclawUiPropagation);
+    });
 
     const buttonAura = document.createElement("span");
     buttonAura.className = "pig-fab-aura";
@@ -3516,7 +3649,7 @@
         return;
       }
       ensureUiMounted();
-      if (state.chatVisible || state.thinkingActive || state.llmConfig.visible || state.skillConfig.visible || state.channelConfig.visible) {
+      if (state.chatVisible || state.thinkingActive || state.llmConfig.visible || state.skillConfig.visible || state.taskConfig.visible || state.channelConfig.visible) {
         syncUI();
       }
     }, MOUNT_WATCHDOG_INTERVAL);

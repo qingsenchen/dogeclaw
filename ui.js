@@ -602,6 +602,161 @@
     return row;
   }
 
+  function formatDateTime(ms) {
+    const value = Number(ms) || 0;
+    if (!value) {
+      return "";
+    }
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date(value));
+    } catch {
+      return new Date(value).toLocaleString();
+    }
+  }
+
+  function formatTaskSchedule(schedule = {}) {
+    if (schedule.kind === "once") {
+      return t("task.schedule.once", { time: formatDateTime(schedule.runAtMs) || schedule.runAt || "" });
+    }
+    if (schedule.kind === "interval") {
+      return t("task.schedule.interval", { count: schedule.everyMinutes || "" });
+    }
+    if (schedule.kind === "daily") {
+      return t("task.schedule.daily", { time: schedule.timeOfDay || "" });
+    }
+    if (schedule.kind === "weekly") {
+      return t("task.schedule.weekly", {
+        days: Array.isArray(schedule.weekdays) ? schedule.weekdays.join(",") : "",
+        time: schedule.timeOfDay || ""
+      });
+    }
+    return t("task.schedule.unknown");
+  }
+
+  function getTaskStatusText(task = {}) {
+    if (task.enabled === false) {
+      return task.pauseReason ? t("task.pausedWithReason", { reason: task.pauseReason }) : t("task.paused");
+    }
+    if (task.nextRunAtMs) {
+      return t("task.nextRun", { time: formatDateTime(task.nextRunAtMs) });
+    }
+    return t("task.enabled");
+  }
+
+  function renderTaskConfigForm({ state, onToggle, onClose }) {
+    const row = document.createElement("div");
+    row.className = "pig-chat-row is-left is-component";
+
+    const panel = document.createElement("div");
+    panel.className = "pig-chat-bubble pig-component-card pig-task-config-form";
+    stopComponentPropagation(panel);
+
+    const title = document.createElement("div");
+    title.className = "pig-config-title";
+    title.textContent = t("task.configTitle");
+
+    const closeButton = document.createElement("button");
+    closeButton.className = "pig-config-close";
+    closeButton.type = "button";
+    closeButton.title = t("tips.close");
+    closeButton.setAttribute("aria-label", t("tips.close"));
+    closeButton.append(createCloseIcon());
+    closeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose?.();
+    });
+
+    const header = document.createElement("div");
+    header.className = "pig-config-header";
+    header.append(title, closeButton);
+
+    const body = document.createElement("div");
+    body.className = "pig-task-config-body";
+
+    if (state.taskConfig.loading) {
+      const loading = document.createElement("div");
+      loading.className = "pig-task-hint";
+      loading.textContent = t("task.loading");
+      body.append(loading);
+    } else if (!state.taskConfig.tasks.length) {
+      const empty = document.createElement("div");
+      empty.className = "pig-task-hint";
+      empty.textContent = t("task.empty");
+      body.append(empty);
+    } else {
+      const list = document.createElement("div");
+      list.className = "pig-task-list";
+      state.taskConfig.tasks.forEach((task) => {
+        const item = document.createElement("div");
+        item.className = `pig-task-item${task.enabled === false ? " is-paused" : ""}`;
+
+        const text = document.createElement("div");
+        text.className = "pig-task-text";
+
+        const name = document.createElement("div");
+        name.className = "pig-task-name";
+        name.textContent = task.name || task.id || t("common.empty");
+
+        const description = document.createElement("div");
+        description.className = "pig-task-description";
+        description.textContent = [formatTaskSchedule(task.schedule || {}), getTaskStatusText(task)]
+          .filter(Boolean)
+          .join(" · ");
+        text.append(name, description);
+
+        if (task.lastStatus || task.lastError) {
+          const meta = document.createElement("div");
+          meta.className = "pig-task-meta";
+          meta.textContent = task.lastError || task.lastStatus;
+          text.append(meta);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "pig-task-actions";
+
+        const switchLabel = document.createElement("label");
+        switchLabel.className = "pig-skill-switch pig-task-switch";
+        switchLabel.title = task.enabled ? t("task.enabled") : t("task.paused");
+        switchLabel.setAttribute("aria-label", `${task.name || task.id || t("common.empty")}: ${switchLabel.title}`);
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = task.enabled !== false;
+        checkbox.disabled = state.taskConfig.loading || state.taskConfig.savingId === `pause:${task.id}` || state.taskConfig.savingId === `resume:${task.id}` || state.taskConfig.savingId === `delete:${task.id}`;
+        checkbox.addEventListener("change", (event) => {
+          event.stopPropagation();
+          onToggle?.(task, checkbox.checked);
+        });
+
+        const track = document.createElement("span");
+        track.className = "pig-skill-switch-track";
+        switchLabel.append(checkbox, track);
+
+        actions.append(switchLabel);
+        item.append(text, actions);
+        list.append(item);
+      });
+      body.append(list);
+    }
+
+    if (state.taskConfig.error) {
+      const error = document.createElement("div");
+      error.className = "pig-config-error";
+      error.textContent = state.taskConfig.error;
+      body.append(error);
+    }
+
+    panel.append(header, body);
+    row.append(panel);
+    return row;
+  }
+
   function renderChannelConfigForm({ state, onStart, onCheck, onClose }) {
     const row = document.createElement("div");
     row.className = "pig-chat-row is-left is-component";
@@ -694,6 +849,7 @@
     renderChannelConfigForm,
     renderLlmConfigForm,
     renderSkillConfigForm,
+    renderTaskConfigForm,
     renderMarkdown
   };
 })();
