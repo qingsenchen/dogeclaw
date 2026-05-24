@@ -30,6 +30,8 @@
   const INPUT_IMAGES_TOTAL_DATA_URL_MAX_LENGTH = CONTENT_CONFIG.inputImagesTotalDataUrlMaxLength || 3600000;
   const HOVER_INPUT_HISTORY_LIMIT = Math.max(1, Number(CONTENT_CONFIG.hoverInputHistoryLimit) || 20);
   const INPUT_IMAGE_DRAG_RESET_MS = 900;
+  const INPUT_ELEMENT_ACTION_LIMIT = 1;
+  const ELEMENT_ACTION_DRAG_MIME = "application/x-dogeclaw-element-action";
   const IMAGE_FILE_EXTENSION_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i;
   const DATA_IMAGE_MARKDOWN_RE = /!\[([^\]\n\r]*)]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/;
   const DATA_IMAGE_MARKDOWN_PREFIX_RE = /!\[[^\]\n\r]*]\(data:image\//;
@@ -100,11 +102,13 @@
       window.clearTimeout(state.chatCollapseTimer);
       window.clearTimeout(state.navigationResetTimer);
       window.clearTimeout(state.inputImageDrag.resetTimer);
+      window.clearTimeout(state.inputElementActionDrag.resetTimer);
       window.clearTimeout(state.channelConfig.autoCheckTimer);
       hoverTipDismissTimers.forEach((timerId) => window.clearTimeout(timerId));
       hoverTipDismissTimers.clear();
     } catch {}
     try {
+      restoreTemporaryElementDraggable();
       elements?.root?.remove();
     } catch {}
     if (globalThis[INSTANCE_KEY]?.id === instanceId) {
@@ -182,6 +186,16 @@
       imageUrl: "",
       restoreChatHoldExpanded: false
     },
+    inputElementActionDrag: {
+      active: false,
+      overDropTarget: false,
+      resetTimer: 0,
+      action: null,
+      restoreChatHoldExpanded: false,
+      draggableElement: null,
+      draggableHadAttribute: false,
+      draggableValue: ""
+    },
 	    hoverUserScrolled: false,
 	    hoverScrollToBottomRequested: false,
     commandMenu: {
@@ -194,6 +208,7 @@
 	    chatCollapseTimer: 0,
 	    chatHoldExpanded: false,
 	    inputImages: [],
+    inputElementActions: [],
     hoverInputHistory: [],
     hoverInputHistoryIndex: -1,
     hoverInputHistoryDraft: "",
@@ -829,6 +844,7 @@
 	    elements.button.classList.toggle("is-chat-holding", state.chatHoldExpanded);
 	    elements.button.classList.toggle("supports-input-image", state.llmConfig.imageInputSupported === true);
 	    elements.button.classList.toggle("has-input-image", state.llmConfig.imageInputSupported === true && state.inputImages.length > 0);
+    elements.button.classList.toggle("has-input-element-action", normalizeInputElementActions(state.inputElementActions).length > 0);
     elements.button.style.setProperty("--pig-context-ratio", `${Math.round(state.contextUsage.ratio * 100)}%`);
     elements.buttonStatus.tabIndex = canStop ? 0 : -1;
     elements.buttonStatus.setAttribute("role", canStop ? "button" : "presentation");
@@ -1602,6 +1618,7 @@
     closeConfigPanel();
     state.hoverMessages = [];
     state.inputImages = [];
+    state.inputElementActions = [];
     state.hoverUserScrolled = false;
     state.hoverScrollToBottomRequested = false;
     state.chatVisible = false;
@@ -1609,6 +1626,7 @@
     resetContextUsage();
     setThinkingStatus("");
     renderInputImageState();
+    renderInputElementActionState();
     renderHoverMessages();
     void persistTabConversationNow();
     scheduleSync();
@@ -1620,7 +1638,9 @@
       elements.buttonHoverInput.value = "";
     }
     state.inputImages = [];
+    state.inputElementActions = [];
     renderInputImageState();
+    renderInputElementActionState();
 
     if (commandId === SLASH_COMMAND_IDS.NEW) {
       clearConversationInfo();
@@ -2168,40 +2188,122 @@
       : [];
   }
 
-  function buildImageDisplayMessage(text, images = []) {
+  function normalizeElementActionLabel(value) {
+    return String(value || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  }
+
+  function normalizeInputElementActions(actions) {
+    return Array.isArray(actions)
+      ? actions
+          .filter((action) => action?.kind === "element_action" && action.action === "click")
+          .map((action) => ({
+            kind: "element_action",
+            action: "click",
+            label: normalizeElementActionLabel(action.label || action.text || action.href || "element"),
+            ref: String(action.ref || "").replace(/^@/, "").slice(0, 64),
+            tag: String(action.tag || "").toLowerCase().slice(0, 32),
+            role: String(action.role || "").toLowerCase().slice(0, 64),
+            href: String(action.href || "").slice(0, 2048),
+            selector: String(action.selector || "").slice(0, 2048),
+            text: normalizeElementActionLabel(action.text || action.label || ""),
+            pageUrl: String(action.pageUrl || "").slice(0, 2048)
+          }))
+          .slice(-INPUT_ELEMENT_ACTION_LIMIT)
+      : [];
+  }
+
+  function getElementActionLabel(action) {
+    return normalizeElementActionLabel(action?.label || action?.text || action?.href || t("chat.elementActionFallbackLabel"));
+  }
+
+  function getElementActionHistoryText(action) {
+    const item = normalizeInputElementActions([action])[0];
+    if (!item) {
+      return "";
+    }
+    return [
+      t("chat.elementActionHistory", { label: getElementActionLabel(item) }),
+      `Action: ${item.action}`,
+      `Ref: ${item.ref ? `@${item.ref}` : "(none)"}`,
+      `Selector: ${item.selector || "(none)"}`,
+      `Text fallback: ${item.text || "(none)"}`,
+      `Href: ${item.href || "(none)"}`,
+      `Page URL: ${item.pageUrl || "(unknown)"}`
+    ].join("\n");
+  }
+
+  function buildActionDisplayText(actions = []) {
+    const selectedActions = normalizeInputElementActions(actions);
+    return selectedActions
+      .map((action) => t("chat.elementActionDisplay", { label: getElementActionLabel(action) }))
+      .join("\n");
+  }
+
+  function buildImageDisplayMessage(text, images = [], actions = []) {
     const body = String(text || "").trim();
     const imageMarkdown = normalizeInputImages(images)
       .map((image) => `![${getImageAltText(image)}](${image.dataUrl})`)
       .join("\n\n");
-    return [imageMarkdown, body].filter(Boolean).join("\n\n");
+    return [imageMarkdown, buildActionDisplayText(actions), body].filter(Boolean).join("\n\n");
   }
 
-  function buildImageHistoryText(text, images = []) {
+  function buildImageHistoryText(text, images = [], actions = []) {
     const body = String(text || "").trim();
     const selectedImages = normalizeInputImages(images);
-    if (!selectedImages.length) {
-      return body;
+    const selectedActions = normalizeInputElementActions(actions);
+    const imageHint = !selectedImages.length
+      ? ""
+      : selectedImages.length === 1
+        ? t("chat.imageHistory", { name: getImageAltText(selectedImages[0]) })
+        : t("chat.imagesHistory", {
+            count: selectedImages.length,
+            names: selectedImages.map(getImageAltText).join(", ")
+          });
+    const actionHints = selectedActions.map(getElementActionHistoryText).filter(Boolean).join("\n\n");
+    return [body, imageHint, actionHints].filter(Boolean).join("\n\n");
+  }
+
+  function buildElementActionInstruction(actions = []) {
+    const selectedActions = normalizeInputElementActions(actions);
+    if (!selectedActions.length) {
+      return "";
     }
-    const imageHint = selectedImages.length === 1
-      ? t("chat.imageHistory", { name: getImageAltText(selectedImages[0]) })
-      : t("chat.imagesHistory", {
-          count: selectedImages.length,
-          names: selectedImages.map(getImageAltText).join(", ")
-        });
-    return [body, imageHint].filter(Boolean).join("\n\n");
+
+    return [
+      "Dragged page element action attachment:",
+      ...selectedActions.map((action, index) => [
+        `Element ${index + 1}:`,
+        `- Action: click`,
+        `- Ref: ${action.ref ? `@${action.ref}` : "(none)"}`,
+        `- Label: ${getElementActionLabel(action)}`,
+        `- Tag: ${action.tag || "(unknown)"}`,
+        `- Role: ${action.role || "(unknown)"}`,
+        `- Selector: ${action.selector || "(none)"}`,
+        `- Text fallback: ${action.text || "(none)"}`,
+        `- Href: ${action.href || "(none)"}`,
+        `- Page URL when dragged: ${action.pageUrl || "(unknown)"}`
+      ].join("\n")),
+      "If the user asks to operate the dragged element, call browser_control with action=\"click\" and pass ref when available plus selector and text as fallbacks. Do not say it was clicked until the tool succeeds. If the current tab URL differs from the dragged Page URL, inspect the current tab first. Ask for confirmation before clicking destructive actions such as delete, pay, submit order, log out, or confirm."
+    ].join("\n");
   }
 
-  function buildUserRequestContent(text, images = []) {
+  function buildUserRequestText(text, actions = []) {
+    return [String(text || "").trim(), buildElementActionInstruction(actions)].filter(Boolean).join("\n\n");
+  }
+
+  function buildUserRequestContent(text, images = [], actions = []) {
     const body = String(text || "").trim();
     const selectedImages = normalizeInputImages(images);
+    const selectedActions = normalizeInputElementActions(actions);
+    const requestText = buildUserRequestText(body, selectedActions);
     if (!selectedImages.length) {
-      return body;
+      return requestText;
     }
 
     return [
       {
         type: "text",
-        text: body || (selectedImages.length === 1 ? t("chat.imageOnlyPrompt") : t("chat.imagesOnlyPrompt", { count: selectedImages.length }))
+        text: requestText || (selectedImages.length === 1 ? t("chat.imageOnlyPrompt") : t("chat.imagesOnlyPrompt", { count: selectedImages.length }))
       },
       ...selectedImages.map((image) => ({
         type: "image_url",
@@ -2562,6 +2664,33 @@
     renderInputImageDragState();
 	  }
 
+  function renderInputElementActionState() {
+    if (!elements?.button) {
+      return;
+    }
+
+    const actions = normalizeInputElementActions(state.inputElementActions);
+    if (actions.length !== state.inputElementActions.length) {
+      state.inputElementActions = actions;
+    }
+    const action = actions[0] || null;
+    elements.button.classList.toggle("has-input-element-action", Boolean(action));
+    if (elements.inputElementActionChip) {
+      elements.inputElementActionChip.title = action ? t("chat.elementActionSelected", { label: getElementActionLabel(action) }) : "";
+      elements.inputElementActionChip.setAttribute("aria-label", elements.inputElementActionChip.title || "");
+    }
+    if (elements.inputElementActionLabel) {
+      elements.inputElementActionLabel.textContent = action ? getElementActionLabel(action) : "";
+    }
+    renderInputImageDragState();
+  }
+
+  function clearInputElementActions() {
+    state.inputElementActions = [];
+    renderInputElementActionState();
+    scheduleSync();
+  }
+
   function isImageFile(file) {
     return Boolean(file && (/^image\//i.test(file.type || "") || IMAGE_FILE_EXTENSION_RE.test(file.name || "")));
   }
@@ -2648,6 +2777,177 @@
     return Boolean(target && elements?.buttonInputShell?.contains?.(target));
   }
 
+  function isElementActionDragAvailable() {
+    return Boolean(state.floatingEnabled && elements?.button);
+  }
+
+  function isDogeclawElement(target) {
+    const element = target?.nodeType === Node.ELEMENT_NODE ? target : target?.parentElement;
+    return Boolean(element?.closest?.(`#${ROOT_ID}`));
+  }
+
+  function isElementActionDropTarget(target) {
+    return Boolean(target && elements?.buttonInputShell?.contains?.(target));
+  }
+
+  function getDragSourceElement(target) {
+    const element = target?.nodeType === Node.ELEMENT_NODE ? target : target?.parentElement;
+    if (!element || isDogeclawElement(element)) {
+      return null;
+    }
+    const actionElement = element.closest?.("a[href], button, [role='button'], [role='link'], input[type='button'], input[type='submit'], input[type='reset']");
+    if (!actionElement || isDogeclawElement(actionElement)) {
+      return null;
+    }
+    return actionElement;
+  }
+
+  function cssEscapeIdentifier(value) {
+    if (globalThis.CSS?.escape) {
+      return globalThis.CSS.escape(String(value || ""));
+    }
+    return String(value || "").replace(/[^a-zA-Z0-9_-]/g, (char) => `\\${char}`);
+  }
+
+  function cssString(value) {
+    return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+  }
+
+  function isUniqueSelectorForElement(selector, element) {
+    try {
+      const matches = Array.from(document.querySelectorAll(selector));
+      return matches.length === 1 && matches[0] === element;
+    } catch {
+      return false;
+    }
+  }
+
+  function getElementActionSelector(element) {
+    if (!element) {
+      return "";
+    }
+
+    const id = String(element.id || "").trim();
+    if (id) {
+      const selector = `#${cssEscapeIdentifier(id)}`;
+      if (isUniqueSelectorForElement(selector, element)) {
+        return selector;
+      }
+    }
+
+    const tag = element.tagName.toLowerCase();
+    const attributeSelectors = ["data-testid", "data-test", "data-qa", "aria-label", "name"]
+      .map((name) => {
+        const value = String(element.getAttribute(name) || "").trim();
+        return value ? `${tag}[${name}="${cssString(value)}"]` : "";
+      })
+      .filter(Boolean);
+    if (tag === "a") {
+      const href = String(element.getAttribute("href") || "").trim();
+      if (href) {
+        attributeSelectors.push(`a[href="${cssString(href)}"]`);
+      }
+    }
+    for (const selector of attributeSelectors) {
+      if (isUniqueSelectorForElement(selector, element)) {
+        return selector;
+      }
+    }
+
+    const parts = [];
+    let current = element;
+    while (current && current.nodeType === Node.ELEMENT_NODE && current !== document.body && current !== document.documentElement) {
+      const currentTag = current.tagName.toLowerCase();
+      const siblings = Array.from(current.parentElement?.children || []).filter((sibling) => sibling.tagName === current.tagName);
+      const index = siblings.indexOf(current) + 1;
+      parts.unshift(`${currentTag}:nth-of-type(${Math.max(1, index)})`);
+      const selector = parts.join(" > ");
+      if (isUniqueSelectorForElement(selector, element)) {
+        return selector;
+      }
+      current = current.parentElement;
+    }
+    return parts.join(" > ");
+  }
+
+  function getElementActionText(element) {
+    if (!element) {
+      return "";
+    }
+    const labelledBy = String(element.getAttribute("aria-labelledby") || "")
+      .split(/\s+/)
+      .map((id) => document.getElementById(id))
+      .map((node) => node?.innerText || node?.textContent || "")
+      .join(" ");
+    const value = ["button", "submit", "reset"].includes(element.type) ? element.value || "" : "";
+    return normalizeElementActionLabel(
+      element.getAttribute("aria-label") ||
+      labelledBy ||
+      element.getAttribute("title") ||
+      value ||
+      element.innerText ||
+      element.textContent ||
+      element.href ||
+      ""
+    );
+  }
+
+  function getElementActionRef(element) {
+    try {
+      return String(globalThis.DogeclawContentBrowserActions?.registerElementRef?.(element) || "").replace(/^@/, "").slice(0, 64);
+    } catch {
+      return "";
+    }
+  }
+
+  function createElementActionDescriptor(element, options = {}) {
+    if (!element) {
+      return null;
+    }
+    const tag = element.tagName.toLowerCase();
+    const role =
+      element.getAttribute("role") ||
+      (tag === "a" ? "link" : tag === "button" ? "button" : element.type || tag);
+    const href = tag === "a" ? String(element.href || "") : "";
+    const text = getElementActionText(element);
+    const selector = getElementActionSelector(element);
+    const label = text || href || role || tag;
+    return normalizeInputElementActions([{
+      kind: "element_action",
+      action: "click",
+      label,
+      ref: options.includeRef ? getElementActionRef(element) : "",
+      tag,
+      role,
+      href,
+      selector,
+      text,
+      pageUrl: location.href
+    }])[0] || null;
+  }
+
+  function getDraggedPageElementAction(target) {
+    if (getDraggedPageImageUrl(target)) {
+      return null;
+    }
+    return createElementActionDescriptor(getDragSourceElement(target));
+  }
+
+  function getElementActionFromDataTransfer(dataTransfer) {
+    if (!dataTransfer?.getData) {
+      return null;
+    }
+    const raw = String(dataTransfer.getData(ELEMENT_ACTION_DRAG_MIME) || "").trim();
+    if (!raw) {
+      return null;
+    }
+    try {
+      return normalizeInputElementActions([JSON.parse(raw)])[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
   function getDraggedPageImageUrl(target) {
     const element = target?.nodeType === Node.ELEMENT_NODE ? target : target?.parentElement;
     const image = element?.closest?.("img, picture source, a[href]");
@@ -2702,12 +3002,18 @@
 
     const active = state.inputImageDrag.active && isImageUploadAvailable();
     const overDropTarget = active && state.inputImageDrag.overDropTarget;
+    const actionActive = state.inputElementActionDrag.active && isElementActionDragAvailable();
+    const actionOverDropTarget = actionActive && state.inputElementActionDrag.overDropTarget;
     elements.button.classList.toggle("is-input-image-dragging", active);
     elements.button.classList.toggle("is-input-image-drop-target", overDropTarget);
+    elements.button.classList.toggle("is-input-element-action-dragging", actionActive);
+    elements.button.classList.toggle("is-input-element-action-drop-target", actionOverDropTarget);
     if (elements.buttonHoverInput) {
       elements.buttonHoverInput.placeholder = active
         ? t(overDropTarget ? "chat.dropImageReadyPlaceholder" : "chat.dropImagePlaceholder")
-        : t("chat.inputPlaceholder");
+        : actionActive
+          ? t(actionOverDropTarget ? "chat.dropElementActionReadyPlaceholder" : "chat.dropElementActionPlaceholder")
+          : t("chat.inputPlaceholder");
     }
   }
 
@@ -2749,6 +3055,68 @@
     state.inputImageDrag.overDropTarget = nextOverDropTarget;
     if (nextActive && options.imageUrl) {
       state.inputImageDrag.imageUrl = String(options.imageUrl || "").trim();
+    }
+    renderInputImageDragState();
+    if (changed) {
+      scheduleSync();
+    }
+  }
+
+  function scheduleInputElementActionDragReset() {
+    if (state.inputElementActionDrag.resetTimer) {
+      window.clearTimeout(state.inputElementActionDrag.resetTimer);
+    }
+    state.inputElementActionDrag.resetTimer = window.setTimeout(() => {
+      state.inputElementActionDrag.resetTimer = 0;
+      setInputElementActionDragState(false);
+    }, INPUT_IMAGE_DRAG_RESET_MS);
+  }
+
+  function restoreTemporaryElementDraggable() {
+    const drag = state.inputElementActionDrag;
+    const element = drag.draggableElement;
+    if (!element) {
+      return;
+    }
+    if (drag.draggableHadAttribute) {
+      element.setAttribute("draggable", drag.draggableValue);
+    } else {
+      element.removeAttribute("draggable");
+    }
+    drag.draggableElement = null;
+    drag.draggableHadAttribute = false;
+    drag.draggableValue = "";
+  }
+
+  function setInputElementActionDragState(active, options = {}) {
+    const action = options.action || state.inputElementActionDrag.action || null;
+    const nextActive = Boolean(active && isElementActionDragAvailable() && action);
+    const nextOverDropTarget = Boolean(nextActive && options.overDropTarget);
+    const changed =
+      state.inputElementActionDrag.active !== nextActive ||
+      state.inputElementActionDrag.overDropTarget !== nextOverDropTarget;
+
+    if (nextActive && !state.inputElementActionDrag.active) {
+      state.inputElementActionDrag.restoreChatHoldExpanded = state.chatHoldExpanded;
+      state.chatHoldExpanded = true;
+      updateButtonExpansionSide();
+    }
+
+    if (!nextActive && state.inputElementActionDrag.active) {
+      state.chatHoldExpanded = state.inputElementActionDrag.restoreChatHoldExpanded;
+      state.inputElementActionDrag.restoreChatHoldExpanded = false;
+      state.inputElementActionDrag.overDropTarget = false;
+      state.inputElementActionDrag.action = null;
+      if (state.inputElementActionDrag.resetTimer) {
+        window.clearTimeout(state.inputElementActionDrag.resetTimer);
+        state.inputElementActionDrag.resetTimer = 0;
+      }
+    }
+
+    state.inputElementActionDrag.active = nextActive;
+    state.inputElementActionDrag.overDropTarget = nextOverDropTarget;
+    if (nextActive && action) {
+      state.inputElementActionDrag.action = action;
     }
     renderInputImageDragState();
     if (changed) {
@@ -2873,6 +3241,140 @@
     await addInputImageFiles(Array.from(event.currentTarget?.files || []));
   }
 
+  function handleDocumentElementActionPointerDown(event) {
+    if (!isElementActionDragAvailable() || event.button !== 0 || isDogeclawElement(event.target)) {
+      return;
+    }
+    if (getDraggedPageImageUrl(event.target)) {
+      return;
+    }
+
+    const actionElement = getDragSourceElement(event.target);
+    if (!actionElement) {
+      return;
+    }
+
+    restoreTemporaryElementDraggable();
+    state.inputElementActionDrag.draggableElement = actionElement;
+    state.inputElementActionDrag.draggableHadAttribute = actionElement.hasAttribute("draggable");
+    state.inputElementActionDrag.draggableValue = actionElement.getAttribute("draggable") || "";
+    actionElement.setAttribute("draggable", "true");
+  }
+
+  function handleDocumentElementActionDragStart(event) {
+    if (state.inputImageDrag.active || !isElementActionDragAvailable() || isDogeclawElement(event.target)) {
+      return;
+    }
+    if (getDraggedPageImageUrl(event.target)) {
+      return;
+    }
+
+    const action = createElementActionDescriptor(getDragSourceElement(event.target), { includeRef: true });
+    if (!action) {
+      return;
+    }
+
+    try {
+      event.dataTransfer?.setData?.(ELEMENT_ACTION_DRAG_MIME, JSON.stringify(action));
+    } catch {}
+
+    setInputElementActionDragState(true, {
+      overDropTarget: isElementActionDropTarget(event.target),
+      action
+    });
+    scheduleInputElementActionDragReset();
+  }
+
+  function getCurrentDraggedElementAction(event) {
+    return (
+      state.inputElementActionDrag.action ||
+      getElementActionFromDataTransfer(event.dataTransfer) ||
+      getDraggedPageElementAction(event.target)
+    );
+  }
+
+  function shouldIgnoreElementActionDrag(event) {
+    return (
+      state.inputImageDrag.active ||
+      hasImageDragData(event.dataTransfer) ||
+      Boolean(getDraggedPageImageUrl(event.target))
+    );
+  }
+
+  function handleDocumentElementActionDragEnter(event) {
+    if (!isElementActionDragAvailable() || shouldIgnoreElementActionDrag(event)) {
+      return;
+    }
+
+    const action = getCurrentDraggedElementAction(event);
+    if (!action) {
+      return;
+    }
+
+    setInputElementActionDragState(true, {
+      overDropTarget: isElementActionDropTarget(event.target),
+      action
+    });
+    scheduleInputElementActionDragReset();
+  }
+
+  function handleDocumentElementActionDragOver(event) {
+    if (!isElementActionDragAvailable() || shouldIgnoreElementActionDrag(event)) {
+      return;
+    }
+
+    const action = getCurrentDraggedElementAction(event);
+    if (!action) {
+      return;
+    }
+
+    const overDropTarget = isElementActionDropTarget(event.target);
+    setInputElementActionDragState(true, { overDropTarget, action });
+    scheduleInputElementActionDragReset();
+    if (overDropTarget) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    }
+  }
+
+  function handleDocumentElementActionDragLeave(event) {
+    if (!state.inputElementActionDrag.active) {
+      return;
+    }
+    if (isLeavingViewport(event)) {
+      setInputElementActionDragState(false);
+    }
+  }
+
+  function handleDocumentElementActionDrop(event) {
+    if (!isElementActionDragAvailable() || shouldIgnoreElementActionDrag(event)) {
+      return;
+    }
+
+    const action = getCurrentDraggedElementAction(event);
+    if (!action) {
+      return;
+    }
+
+    const overDropTarget = isElementActionDropTarget(event.target);
+    if (overDropTarget) {
+      event.preventDefault();
+      event.stopPropagation();
+      state.inputElementActions = normalizeInputElementActions([action]);
+      setInputElementActionDragState(false);
+      state.chatHoldExpanded = true;
+      renderInputElementActionState();
+      scheduleSync();
+      window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
+      return;
+    }
+
+    setInputElementActionDragState(false);
+  }
+
   function handleDocumentImageDragEnter(event) {
     if (!isImageUploadAvailable() && !state.inputImageDrag.active) {
       return;
@@ -2966,18 +3468,19 @@
     scheduleInputImageDragReset();
   }
 
-	  async function sendTextToDogeclaw(text, images = []) {
+	  async function sendTextToDogeclaw(text, images = [], actions = []) {
 	    const value = String(text || "").trim();
 	    const requestImages = state.llmConfig.imageInputSupported === true ? normalizeInputImages(images).slice(0, INPUT_IMAGE_MAX_COUNT) : [];
-	    if (!value && !requestImages.length) {
+    const requestActions = normalizeInputElementActions(actions);
+	    if (!value && !requestImages.length && !requestActions.length) {
 	      return false;
 	    }
 
 	    syncPageConversationId();
 	    const history = getLlmHistory();
-	    const displayMessage = buildImageDisplayMessage(value, requestImages);
-	    const historyText = buildImageHistoryText(value, requestImages);
-	    const requestContent = buildUserRequestContent(value, requestImages);
+	    const displayMessage = buildImageDisplayMessage(value, requestImages, requestActions);
+	    const historyText = buildImageHistoryText(value, requestImages, requestActions);
+	    const requestContent = buildUserRequestContent(value, requestImages, requestActions);
 	    addHoverMessage(displayMessage, "right", {
 	      sessionId: state.pageConversationId,
 	      source: "page",
@@ -3014,7 +3517,8 @@
 
 		    const value = input.value.trim();
 		    const images = normalizeInputImages(state.inputImages);
-	    if (!value && !images.length) {
+    const actions = normalizeInputElementActions(state.inputElementActions);
+	    if (!value && !images.length && !actions.length) {
 	      return;
 	    }
 
@@ -3029,8 +3533,10 @@
     recordHoverInputHistory(value);
 		    input.value = "";
 		    state.inputImages = [];
+    state.inputElementActions = [];
 		    renderInputImageState();
-	    await sendTextToDogeclaw(value, images);
+    renderInputElementActionState();
+	    await sendTextToDogeclaw(value, images, actions);
 	  }
 
   function onPointerDown(event) {
@@ -3389,6 +3895,49 @@
     inputImageRemove.append(inputImageRemoveIcon);
     inputImageChip.append(inputImagePreview, inputImageRemove);
 
+    const inputElementActionChip = document.createElement("span");
+    inputElementActionChip.className = "pig-input-element-action-chip";
+    const inputElementActionIcon = document.createElement("span");
+    inputElementActionIcon.className = "pig-input-element-action-icon";
+    inputElementActionIcon.setAttribute("aria-hidden", "true");
+    const inputElementActionIconSvg = svgElement("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true"
+    });
+    inputElementActionIconSvg.append(
+      svgElement("path", {
+        d: "M7 17L17 7M9 7h8v8",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round"
+      })
+    );
+    inputElementActionIcon.append(inputElementActionIconSvg);
+    const inputElementActionLabel = document.createElement("span");
+    inputElementActionLabel.className = "pig-input-element-action-label";
+    const inputElementActionRemove = document.createElement("button");
+    inputElementActionRemove.className = "pig-input-element-action-remove";
+    inputElementActionRemove.type = "button";
+    inputElementActionRemove.title = t("chat.removeElementAction");
+    inputElementActionRemove.setAttribute("aria-label", t("chat.removeElementAction"));
+    const inputElementActionRemoveIcon = svgElement("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true"
+    });
+    inputElementActionRemoveIcon.append(
+      svgElement("path", {
+        d: "M6 6l12 12M18 6L6 18",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round"
+      })
+    );
+    inputElementActionRemove.append(inputElementActionRemoveIcon);
+    inputElementActionChip.append(inputElementActionIcon, inputElementActionLabel, inputElementActionRemove);
+
     const buttonInputShell = document.createElement("span");
     buttonInputShell.className = "pig-hover-input-shell";
     buttonInputShell.title = "";
@@ -3400,7 +3949,7 @@
     buttonHoverInput.setAttribute("aria-label", t("chat.inputAria"));
     buttonHoverInput.autocomplete = "off";
     buttonHoverInput.title = "";
-    buttonInputShell.append(inputImageButton, inputImageChip, buttonHoverInput, inputImageFile);
+    buttonInputShell.append(inputImageButton, inputImageChip, inputElementActionChip, buttonHoverInput, inputImageFile);
 
     const hoverMessages = document.createElement("div");
     hoverMessages.className = "pig-chat-messages";
@@ -3466,6 +4015,12 @@
       clearInputImages();
       window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
 	    });
+    inputElementActionRemove.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearInputElementActions();
+      window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
+    });
 	    buttonHoverInput.addEventListener("input", handleHoverInputChange);
 	    buttonHoverInput.addEventListener("focus", handleHoverInputFocus);
 	    buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
@@ -3474,7 +4029,19 @@
     addManagedEventListener(document, "dragover", handleDocumentImageDragOver, true);
     addManagedEventListener(document, "dragleave", handleDocumentImageDragLeave, true);
     addManagedEventListener(document, "drop", handleDocumentImageDrop, true);
-    addManagedEventListener(document, "dragend", () => setInputImageDragState(false), true);
+    addManagedEventListener(document, "pointerdown", handleDocumentElementActionPointerDown, true);
+    addManagedEventListener(document, "pointerup", restoreTemporaryElementDraggable, true);
+    addManagedEventListener(document, "pointercancel", restoreTemporaryElementDraggable, true);
+    addManagedEventListener(document, "dragenter", handleDocumentElementActionDragEnter, true);
+    addManagedEventListener(document, "dragstart", handleDocumentElementActionDragStart, true);
+    addManagedEventListener(document, "dragover", handleDocumentElementActionDragOver, true);
+    addManagedEventListener(document, "dragleave", handleDocumentElementActionDragLeave, true);
+    addManagedEventListener(document, "drop", handleDocumentElementActionDrop, true);
+    addManagedEventListener(document, "dragend", () => {
+      setInputImageDragState(false);
+      setInputElementActionDragState(false);
+      restoreTemporaryElementDraggable();
+    }, true);
 	    addManagedEventListener(window, "resize", handleWindowResize);
 
     return {
@@ -3491,6 +4058,9 @@
       inputImageChip,
       inputImagePreview,
 	      inputImageRemove,
+      inputElementActionChip,
+      inputElementActionLabel,
+      inputElementActionRemove,
 	      hoverMessages,
       buttonPupils: [leftPupil, rightPupil],
       buttonEyes: [leftEye, rightEye],
@@ -3540,6 +4110,7 @@
           return;
         }
         renderInputImageState();
+        renderInputElementActionState();
         scheduleSync();
       })
       .catch(() => null);

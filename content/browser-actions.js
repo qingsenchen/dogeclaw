@@ -88,6 +88,13 @@
     return ref;
   }
 
+  function registerElementRef(element) {
+    if (!isHtmlElement(element) || !element.isConnected) {
+      return "";
+    }
+    return getBrowserRef(element);
+  }
+
   function browserRect(bounds) {
     return {
       x: Math.round(bounds.left),
@@ -755,6 +762,7 @@
   }
 
   globalThis.DogeclawContentBrowserActions = {
-    createController
+    createController,
+    registerElementRef
   };
 })();
