@@ -100,6 +100,7 @@
       window.clearTimeout(state.chatHideTimer);
       window.clearTimeout(state.chatCollapseTimer);
       window.clearTimeout(state.navigationResetTimer);
+      window.clearTimeout(state.imagePreview.pointerHandledTimer);
       window.clearTimeout(state.inputImageDrag.resetTimer);
       window.clearTimeout(state.channelConfig.autoCheckTimer);
       hoverTipDismissTimers.forEach((timerId) => window.clearTimeout(timerId));
@@ -163,19 +164,26 @@
 
   injectContentStyles();
 
-	  const state = {
-	    floatingEnabled: true,
-	    syncQueued: false,
-	    drag: {
-	      active: false,
-	      moved: false,
-	      pointerId: null,
-	      startX: 0,
-	      startY: 0,
-	      startLeft: 0,
-	      startTop: 0
-	    },
-	    hoverMessages: [],
+  const state = {
+    floatingEnabled: true,
+    syncQueued: false,
+    drag: {
+      active: false,
+      moved: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startLeft: 0,
+      startTop: 0
+    },
+    hoverMessages: [],
+    imagePreview: {
+      visible: false,
+      src: "",
+      alt: "",
+      restoreFocus: null,
+      pointerHandledTimer: 0
+    },
     inputImageDrag: {
       active: false,
       overDropTarget: false,
@@ -1165,6 +1173,10 @@
   }
 
   function hideChatIfCollapsed(event) {
+    if (state.imagePreview.visible) {
+      return;
+    }
+
     const nextTarget = event?.relatedTarget;
     if (nextTarget && elements?.button?.contains?.(nextTarget)) {
       return;
@@ -2017,8 +2029,180 @@
   function renderChatMessageRow(message) {
     const row = document.createElement("div");
     row.className = `pig-chat-row is-${message.side}${message.pending ? " is-pending" : ""}`;
-    row.append(window.DogeclawUI.createChatBubble(message.text));
+    const bubble = window.DogeclawUI.createChatBubble(message.text);
+    attachChatImagePreviewHandlers(bubble);
+    row.append(bubble);
     return row;
+  }
+
+  function getChatPreviewImage(target) {
+    const image = target?.closest?.(".pig-chat-image");
+    if (!image || !elements?.hoverMessages?.contains?.(image)) {
+      return null;
+    }
+    return image;
+  }
+
+  function markImagePreviewPointerHandled(image) {
+    if (!image) {
+      return;
+    }
+
+    image.dataset.dogeclawPreviewPointerHandled = "true";
+    if (state.imagePreview.pointerHandledTimer) {
+      window.clearTimeout(state.imagePreview.pointerHandledTimer);
+    }
+    state.imagePreview.pointerHandledTimer = window.setTimeout(() => {
+      state.imagePreview.pointerHandledTimer = 0;
+      if (image.isConnected) {
+        delete image.dataset.dogeclawPreviewPointerHandled;
+      }
+    }, 350);
+  }
+
+  function attachChatImagePreviewHandlers(container) {
+    container?.querySelectorAll?.(".pig-chat-image").forEach((image) => {
+      if (image.dataset.dogeclawPreviewBound === "true") {
+        return;
+      }
+      image.dataset.dogeclawPreviewBound = "true";
+      image.addEventListener("pointerup", handleChatImagePreviewPointerUp);
+      image.addEventListener("click", handleChatImagePreviewClick);
+      image.addEventListener("keydown", handleChatImagePreviewKeydown);
+    });
+  }
+
+  function clearImagePreviewTimers() {
+    if (state.chatHideTimer) {
+      window.clearTimeout(state.chatHideTimer);
+      state.chatHideTimer = 0;
+    }
+    if (state.chatCollapseTimer) {
+      window.clearTimeout(state.chatCollapseTimer);
+      state.chatCollapseTimer = 0;
+    }
+  }
+
+  function renderImagePreview() {
+    if (!elements?.imagePreviewOverlay || !elements?.imagePreviewImage) {
+      return;
+    }
+
+    const visible = Boolean(state.imagePreview.visible && state.imagePreview.src);
+    elements.imagePreviewOverlay.hidden = !visible;
+    elements.imagePreviewOverlay.setAttribute("aria-hidden", visible ? "false" : "true");
+    elements.imagePreviewOverlay.classList.toggle("is-visible", visible);
+    if (visible) {
+      elements.imagePreviewImage.src = state.imagePreview.src;
+      elements.imagePreviewImage.alt = state.imagePreview.alt || t("image.alt");
+      return;
+    }
+
+    elements.imagePreviewImage.removeAttribute("src");
+    elements.imagePreviewImage.alt = "";
+  }
+
+  function openImagePreview(image) {
+    const src = image?.currentSrc || image?.getAttribute?.("src") || image?.src || "";
+    if (!src) {
+      return;
+    }
+
+    clearImagePreviewTimers();
+    state.chatVisible = true;
+    state.chatHoldExpanded = true;
+    state.imagePreview.visible = true;
+    state.imagePreview.src = src;
+    state.imagePreview.alt = image?.getAttribute?.("alt") || t("image.alt");
+    state.imagePreview.restoreFocus =
+      image && typeof image.focus === "function" ? image : document.activeElement;
+    renderImagePreview();
+    window.requestAnimationFrame(() => {
+      elements?.imagePreviewClose?.focus?.({ preventScroll: true });
+    });
+  }
+
+  function closeImagePreview() {
+    if (!state.imagePreview.visible) {
+      return;
+    }
+
+    const restoreFocus = state.imagePreview.restoreFocus;
+    state.imagePreview.visible = false;
+    state.imagePreview.src = "";
+    state.imagePreview.alt = "";
+    state.imagePreview.restoreFocus = null;
+    renderImagePreview();
+    if (restoreFocus?.isConnected && typeof restoreFocus.focus === "function") {
+      restoreFocus.focus({ preventScroll: true });
+    }
+  }
+
+  function handleChatImagePreviewClick(event) {
+    const image = getChatPreviewImage(event.target);
+    if (!image) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (image.dataset.dogeclawPreviewPointerHandled === "true") {
+      return;
+    }
+    openImagePreview(image);
+  }
+
+  function handleChatImagePreviewPointerUp(event) {
+    if (event.button !== undefined && event.button !== 0) {
+      return;
+    }
+
+    const image = getChatPreviewImage(event.target);
+    if (!image) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    markImagePreviewPointerHandled(image);
+    openImagePreview(image);
+  }
+
+  function handleChatImagePreviewKeydown(event) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    const image = getChatPreviewImage(event.target);
+    if (!image) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    openImagePreview(image);
+  }
+
+  function handleImagePreviewOverlayClick(event) {
+    if (event.target === elements?.imagePreviewOverlay) {
+      closeImagePreview();
+    }
+  }
+
+  function handleImagePreviewCloseClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeImagePreview();
+  }
+
+  function handleImagePreviewDocumentKeydown(event) {
+    if (!state.imagePreview.visible || event.key !== "Escape") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    closeImagePreview();
   }
 
   function trimHoverMessagesToLimit() {
@@ -3540,14 +3724,53 @@
     hoverMessages.hidden = true;
     hoverMessages.title = "";
 
-	    buttonStatus.append(buttonStatusDot);
-	    buttonCopy.append(buttonInputShell);
+    const imagePreviewOverlay = document.createElement("div");
+    imagePreviewOverlay.className = "pig-image-preview-overlay";
+    imagePreviewOverlay.hidden = true;
+    imagePreviewOverlay.setAttribute("aria-hidden", "true");
+
+    const imagePreviewDialog = document.createElement("div");
+    imagePreviewDialog.className = "pig-image-preview-dialog";
+    imagePreviewDialog.setAttribute("role", "dialog");
+    imagePreviewDialog.setAttribute("aria-modal", "true");
+    imagePreviewDialog.setAttribute("aria-label", t("image.previewTitle"));
+    imagePreviewDialog.tabIndex = -1;
+
+    const imagePreviewClose = document.createElement("button");
+    imagePreviewClose.className = "pig-config-close pig-image-preview-close";
+    imagePreviewClose.type = "button";
+    imagePreviewClose.title = t("image.previewClose");
+    imagePreviewClose.setAttribute("aria-label", t("image.previewClose"));
+    const imagePreviewCloseIcon = svgElement("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true"
+    });
+    imagePreviewCloseIcon.append(
+      svgElement("path", {
+        d: "M6 6l12 12M18 6L6 18",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round"
+      })
+    );
+    imagePreviewClose.append(imagePreviewCloseIcon);
+
+    const imagePreviewImage = document.createElement("img");
+    imagePreviewImage.className = "pig-image-preview-image";
+    imagePreviewImage.alt = "";
+    imagePreviewImage.decoding = "async";
+    imagePreviewDialog.append(imagePreviewClose, imagePreviewImage);
+    imagePreviewOverlay.append(imagePreviewDialog);
+
+    buttonStatus.append(buttonStatusDot);
+    buttonCopy.append(buttonInputShell);
 
     const tailTip = document.createElement("span");
     tailTip.className = "pig-tail-tip";
 
     button.append(hoverMessages, buttonAura, buttonIconWrap, buttonCopy, buttonStatus, tailTip);
-    root.append(button);
+    root.append(button, imagePreviewOverlay);
     (document.body || document.documentElement).append(root);
 
     buttonIconWrap.addEventListener("click", handlePetButtonClick);
@@ -3584,6 +3807,10 @@
     buttonIconWrap.addEventListener("pointerup", onPointerUp);
     buttonIconWrap.addEventListener("pointercancel", onPointerUp);
     hoverMessages.addEventListener("scroll", handleHoverMessagesScroll, { passive: true });
+    hoverMessages.addEventListener("click", handleChatImagePreviewClick);
+    hoverMessages.addEventListener("keydown", handleChatImagePreviewKeydown);
+    imagePreviewOverlay.addEventListener("click", handleImagePreviewOverlayClick);
+    imagePreviewClose.addEventListener("click", handleImagePreviewCloseClick);
     inputImageButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -3608,7 +3835,8 @@
     addManagedEventListener(document, "dragleave", handleDocumentImageDragLeave, true);
     addManagedEventListener(document, "drop", handleDocumentImageDrop, true);
     addManagedEventListener(document, "dragend", () => setInputImageDragState(false), true);
-	    addManagedEventListener(window, "resize", handleWindowResize);
+    addManagedEventListener(document, "keydown", handleImagePreviewDocumentKeydown, true);
+    addManagedEventListener(window, "resize", handleWindowResize);
 
     return {
       root,
@@ -3623,8 +3851,12 @@
       inputImageFile,
       inputImageChip,
       inputImagePreview,
-	      inputImageRemove,
-	      hoverMessages,
+      inputImageRemove,
+      hoverMessages,
+      imagePreviewOverlay,
+      imagePreviewDialog,
+      imagePreviewImage,
+      imagePreviewClose,
       buttonPupils: [leftPupil, rightPupil],
       buttonEyes: [leftEye, rightEye],
       buttonNose: nose,

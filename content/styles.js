@@ -659,11 +659,83 @@
         object-fit: contain;
         border-radius: 10px;
         background: rgba(255, 255, 255, 0.08);
+        cursor: zoom-in;
+        pointer-events: auto;
+        user-select: none;
+      }
+
+      .pig-chat-bubble .pig-chat-image:hover {
+        filter: brightness(1.04);
+      }
+
+      .pig-chat-bubble .pig-chat-image:focus-visible {
+        outline: 2px solid rgba(147, 197, 253, 0.92);
+        outline-offset: 2px;
       }
 
       .pig-chat-bubble .pig-chat-image + .pig-chat-image,
       .pig-chat-bubble .pig-chat-image + p {
         margin-top: 6px;
+      }
+
+      .pig-image-preview-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100vw;
+        height: 100vh;
+        padding: 24px;
+        background: rgba(0, 0, 0, 0.58);
+        cursor: zoom-out;
+        pointer-events: auto;
+      }
+
+      .pig-image-preview-dialog {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        min-width: min(280px, calc(100vw - 32px));
+        max-width: min(920px, calc(100vw - 32px));
+        max-height: calc(100vh - 48px);
+        padding: 38px 12px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        background: rgba(24, 24, 24, 0.96);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
+        cursor: default;
+        outline: none;
+      }
+
+      .pig-image-preview-image {
+        display: block;
+        width: auto;
+        max-width: min(860px, calc(100vw - 56px));
+        max-height: calc(100vh - 112px);
+        object-fit: contain;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      @media (max-width: 480px) {
+        .pig-image-preview-overlay {
+          padding: 16px;
+        }
+
+        .pig-image-preview-dialog {
+          min-width: calc(100vw - 32px);
+          max-height: calc(100vh - 32px);
+          padding: 36px 10px 10px;
+        }
+
+        .pig-image-preview-image {
+          max-width: calc(100vw - 52px);
+          max-height: calc(100vh - 94px);
+        }
       }
 
       .pig-chat-row.is-left .pig-chat-bubble {
@@ -1088,6 +1160,13 @@
         width: 13px;
         height: 13px;
         display: block;
+      }
+
+      .pig-image-preview-dialog .pig-image-preview-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1;
       }
 
       .pig-config-field {

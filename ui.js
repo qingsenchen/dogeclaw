@@ -1,7 +1,8 @@
 (function () {
   const I18N = globalThis.DogeclawI18n || { t: (key, params) => {
     const fallback = {
-      "image.alt": "Image"
+      "image.alt": "Image",
+      "image.previewOpen": "Open image preview"
     };
     let value = fallback[key] || key;
     Object.entries(params || {}).forEach(([name, replacement]) => {
@@ -27,6 +28,13 @@
       protectedHtml.push(html);
       return token;
     };
+    const renderChatImage = (src, label) => {
+      const alt = label || escapeHtml(t("image.alt"));
+      const title = escapeHtml(t("image.previewOpen"));
+      return protectHtml(
+        `<img class="pig-chat-image" data-dogeclaw-preview-image="true" src="${src}" alt="${alt}" loading="lazy" decoding="async" tabindex="0" role="button" draggable="false" title="${title}">`
+      );
+    };
 
     let text = escapeHtml(value).replace(/`([^`]+)`/g, (_match, code) => {
       return protectHtml(`<code>${code}</code>`);
@@ -34,13 +42,11 @@
 
     text = text
       .replace(/!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[^)]+)\)/g, (_match, label, src) => {
-        const alt = label || escapeHtml(t("image.alt"));
-        return protectHtml(`<img class="pig-chat-image" src="${src}" alt="${alt}" loading="lazy">`);
+        return renderChatImage(src, label);
       })
       .replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, src) => {
         const safeSrc = src.replace(/&amp;/g, "&");
-        const alt = label || escapeHtml(t("image.alt"));
-        return protectHtml(`<img class="pig-chat-image" src="${safeSrc}" alt="${alt}" loading="lazy">`);
+        return renderChatImage(safeSrc, label);
       })
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, href) => {
         const safeHref = href.replace(/&amp;/g, "&");
