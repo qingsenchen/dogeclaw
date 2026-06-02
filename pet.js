@@ -32,7 +32,10 @@
     EAR_PERK: "ear_perk",
     NUZZLE: "nuzzle",
     SHAKE: "shake",
-    GREET_COMBO: "greet_combo"
+    GREET_COMBO: "greet_combo",
+    PINCH: "pinch",
+    WHIP: "whip",
+    KNOCK: "knock"
   };
   const PET_FACES = {
     NORMAL: "normal",
@@ -169,7 +172,10 @@
       [PET_ACTIONS.EAR_PERK]: 480,
       [PET_ACTIONS.NUZZLE]: 550,
       [PET_ACTIONS.SHAKE]: 420,
-      [PET_ACTIONS.GREET_COMBO]: 1100
+      [PET_ACTIONS.GREET_COMBO]: 1100,
+      [PET_ACTIONS.PINCH]: 600,
+      [PET_ACTIONS.WHIP]: 800,
+      [PET_ACTIONS.KNOCK]: 500
     };
     const actionNameMap = Object.values(PET_ACTIONS).reduce((accumulator, actionName) => {
       accumulator[actionName] = actionName;
@@ -189,7 +195,8 @@
       isScanning: false,
       pointerX: window.innerWidth / 2,
       pointerY: window.innerHeight / 2,
-      eyeResetTimer: 0
+      eyeResetTimer: 0,
+      merit: 0
     };
 
     function bindEvents() {
@@ -245,6 +252,57 @@
       setMood(runtime.affection > 80 ? PET_MOODS.EXCITED : PET_MOODS.NEEDY);
       playAction(PET_ACTIONS.GREET_COMBO, true);
       showBubble("heart");
+    }
+
+    function handlePinch() {
+      touch();
+      runtime.affection = Math.min(100, runtime.affection + 12);
+      runtime.boredom = Math.max(0, runtime.boredom - 15);
+      setFace(PET_FACES.SURPRISED);
+      window.setTimeout(() => {
+        setMood(PET_MOODS.HAPPY);
+      }, 300);
+      playAction(PET_ACTIONS.PINCH, true);
+      showBubble("heart");
+      const words = [t("pet.pinch.0"), t("pet.pinch.1"), t("pet.pinch.2"), t("pet.pinch.3")];
+      updateLabel(words[Math.floor(Math.random() * words.length)]);
+    }
+
+    function handleWhip() {
+      touch();
+      runtime.affection = Math.max(0, runtime.affection - 8);
+      runtime.boredom = Math.max(0, runtime.boredom - 20);
+      setMood(PET_MOODS.ANGRY);
+      playAction(PET_ACTIONS.WHIP, true);
+      showBubble("anger");
+      elements.buttonTears?.forEach((tear) => {
+        tear.style.opacity = "0.85";
+        tear.classList.add("pig-tear-flow");
+        window.setTimeout(() => {
+          tear.style.opacity = "0";
+          tear.classList.remove("pig-tear-flow");
+        }, 1200);
+      });
+      window.setTimeout(() => {
+        setMood(PET_MOODS.SAD);
+      }, 800);
+      const words = [t("pet.whip.0"), t("pet.whip.1"), t("pet.whip.2"), t("pet.whip.3")];
+      updateLabel(words[Math.floor(Math.random() * words.length)]);
+    }
+
+    function handleKnock() {
+      touch();
+      runtime.merit += 1;
+      runtime.affection = Math.min(100, runtime.affection + 3);
+      runtime.boredom = Math.max(0, runtime.boredom - 5);
+      setFace(PET_FACES.SURPRISED);
+      window.setTimeout(() => {
+        setFace(moodFaceMap[runtime.mood] || PET_FACES.NORMAL);
+      }, 400);
+      playAction(PET_ACTIONS.KNOCK, true);
+      showBubble("star");
+      const words = [t("pet.knock.0"), t("pet.knock.1"), t("pet.knock.2"), t("pet.knock.3")];
+      updateLabel(words[Math.floor(Math.random() * words.length)]);
     }
 
     function handleScanFeedback() {
@@ -539,6 +597,20 @@
           ]);
           showBubble("heart");
           break;
+        case PET_ACTIONS.PINCH:
+          replayClass(elements.buttonIconWrap, "pinch");
+          break;
+        case PET_ACTIONS.WHIP:
+          replayClass(elements.buttonHeadGroup, "shake");
+          replayClass(elements.buttonEarLeft, "ear-drop-left");
+          replayClass(elements.buttonEarRight, "ear-drop-right");
+          window.setTimeout(() => {
+            replayClass(elements.buttonHeadGroup, "shake");
+          }, 200);
+          break;
+        case PET_ACTIONS.KNOCK:
+          replayClass(elements.buttonIconWrap, "knock");
+          break;
       }
 
       return true;
@@ -684,7 +756,9 @@
         "ear-drop-left": 650,
         "ear-drop-right": 650,
         "ear-flap-left": 460,
-        "ear-flap-right": 460
+        "ear-flap-right": 460,
+        pinch: 600,
+        knock: 500
       }[className];
 
       if (duration) {
@@ -698,6 +772,9 @@
 
     return {
       handlePrimaryAction,
+      handlePinch,
+      handleWhip,
+      handleKnock,
       handleScanFeedback,
       handleRemoteCommand,
       sync,

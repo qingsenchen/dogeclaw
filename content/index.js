@@ -170,12 +170,16 @@
     drag: {
       active: false,
       moved: false,
+      flicked: false,
       pointerId: null,
+      startTime: 0,
       startX: 0,
       startY: 0,
       startLeft: 0,
       startTop: 0
     },
+    dblClickPending: false,
+    dblClickTimer: 0,
     hoverMessages: [],
     imagePreview: {
       visible: false,
@@ -953,32 +957,66 @@
       return;
     }
 
-    petController.handlePrimaryAction(event?.clientX, event?.clientY);
-
-    if (
-      state.chatVisible &&
-      state.hoverMessages.length > 0 &&
-      !state.commandMenu.visible &&
-      !state.llmConfig.visible &&
-      !state.skillConfig.visible &&
-      !state.taskConfig.visible &&
-      !state.channelConfig.visible
-    ) {
-      collapseTransientChat();
+    if (state.drag.flicked) {
+      state.drag.flicked = false;
       return;
     }
 
-    if (await showLlmConfigIfNeeded()) {
+    if (state.dblClickPending) {
+      state.dblClickPending = false;
       return;
     }
 
-    state.chatVisible = true;
-    state.chatHoldExpanded = true;
-    updateButtonExpansionSide();
-    scheduleSync();
-    window.requestAnimationFrame(() => {
-      elements.buttonHoverInput?.focus?.();
-    });
+    state.dblClickPending = true;
+    state.dblClickTimer = window.setTimeout(async () => {
+      state.dblClickPending = false;
+      state.dblClickTimer = 0;
+
+      petController.handlePrimaryAction(event?.clientX, event?.clientY);
+
+      if (await showLlmConfigIfNeeded()) {
+        return;
+      }
+
+      state.chatVisible = true;
+      state.chatHoldExpanded = true;
+      updateButtonExpansionSide();
+      scheduleSync();
+      window.requestAnimationFrame(() => {
+        elements.buttonHoverInput?.focus?.();
+      });
+    }, 250);
+  }
+
+  function handlePetButtonDblClick(event) {
+    if (state.dblClickTimer) {
+      window.clearTimeout(state.dblClickTimer);
+      state.dblClickTimer = 0;
+      state.dblClickPending = false;
+    }
+    if (state.drag.moved || state.drag.flicked) {
+      return;
+    }
+    collapseTransientChat();
+  }
+
+  function showMeritFloat() {
+    if (!elements.root) {
+      return;
+    }
+    const rect = elements.buttonIconWrap?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+    const meritEl = document.createElement("div");
+    meritEl.className = "dogeclaw-merit-float";
+    meritEl.textContent = t("interaction.merit");
+    meritEl.style.left = (rect.left + rect.width / 2 - 30) + "px";
+    meritEl.style.top = (rect.top - 10) + "px";
+    elements.root.append(meritEl);
+    window.setTimeout(() => {
+      meritEl.remove();
+    }, 1200);
   }
 
   function applySavedPosition() {
@@ -3344,7 +3382,9 @@
 
     state.drag.active = true;
     state.drag.moved = false;
+    state.drag.flicked = false;
     state.drag.pointerId = event.pointerId;
+    state.drag.startTime = Date.now();
     state.drag.startX = event.clientX;
     state.drag.startY = event.clientY;
     const visualRect = getButtonVisualRect();
@@ -3395,6 +3435,28 @@
     event.currentTarget?.releasePointerCapture?.(event.pointerId);
     elements.button.classList.remove("is-dragging");
 
+    const duration = Date.now() - state.drag.startTime;
+    const dx = event.clientX - state.drag.startX;
+    const dy = event.clientY - state.drag.startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (duration < 280 && distance > 18) {
+      state.drag.flicked = true;
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      let direction;
+      if (angle < -45 && angle > -135) {
+        direction = "up";
+      } else if (angle >= -45 && angle < 45) {
+        direction = "right";
+      } else if (angle >= 45 && angle < 135) {
+        direction = "down";
+      } else {
+        direction = "left";
+      }
+      handleFlickGesture(direction);
+      return;
+    }
+
     if (state.drag.moved) {
       persistPosition(
         Number.isFinite(persistedLeft) ? persistedLeft : state.drag.startLeft,
@@ -3402,7 +3464,89 @@
       );
       updateButtonExpansionSide();
       scheduleSync();
+      return;
     }
+  }
+
+  function handleFlickGesture(direction) {
+    if (direction === "up") {
+      petController.handlePinch();
+    } else if (direction === "left" || direction === "right") {
+      petController.handleWhip();
+      showWhipEffect(direction === "left");
+    } else if (direction === "down") {
+      petController.handleKnock();
+      showKnockStickEffect();
+      showMeritFloat();
+    }
+  }
+
+  function showWhipEffect(fromLeft) {
+    if (!elements.root || !elements.buttonIconWrap) {
+      return;
+    }
+    const petRect = elements.buttonIconWrap.getBoundingClientRect();
+    const rootRect = elements.root.getBoundingClientRect();
+
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("class", "dogeclaw-whip-effect");
+    svg.setAttribute("width", "80");
+    svg.setAttribute("height", "50");
+    svg.style.overflow = "visible";
+
+    const line = document.createElementNS(SVG_NS, "line");
+    if (fromLeft) {
+      svg.style.left = (petRect.left - rootRect.left - 70) + "px";
+      svg.style.top = (petRect.top - rootRect.top - 15) + "px";
+      line.setAttribute("x1", "70");
+      line.setAttribute("y1", "5");
+      line.setAttribute("x2", "20");
+      line.setAttribute("y2", "40");
+    } else {
+      svg.style.left = (petRect.right - rootRect.left - 10) + "px";
+      svg.style.top = (petRect.top - rootRect.top - 15) + "px";
+      line.setAttribute("x1", "10");
+      line.setAttribute("y1", "5");
+      line.setAttribute("x2", "60");
+      line.setAttribute("y2", "40");
+    }
+    line.setAttribute("class", "dogeclaw-whip-line");
+    line.setAttribute("stroke-dasharray", "60");
+    line.setAttribute("stroke-dashoffset", "60");
+    svg.append(line);
+    elements.root.append(svg);
+
+    window.setTimeout(() => {
+      svg.remove();
+    }, 450);
+  }
+
+  function showKnockStickEffect() {
+    if (!elements.root || !elements.buttonIconWrap) {
+      return;
+    }
+    const petRect = elements.buttonIconWrap.getBoundingClientRect();
+    const rootRect = elements.root.getBoundingClientRect();
+
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("class", "dogeclaw-knock-effect");
+    svg.setAttribute("width", "20");
+    svg.setAttribute("height", "50");
+    svg.style.left = (petRect.left - rootRect.left + petRect.width / 2 - 10) + "px";
+    svg.style.top = (petRect.top - rootRect.top - 40) + "px";
+
+    const stick = document.createElementNS(SVG_NS, "line");
+    stick.setAttribute("x1", "10");
+    stick.setAttribute("y1", "0");
+    stick.setAttribute("x2", "10");
+    stick.setAttribute("y2", "35");
+    stick.setAttribute("class", "dogeclaw-knock-stick");
+    svg.append(stick);
+    elements.root.append(svg);
+
+    window.setTimeout(() => {
+      svg.remove();
+    }, 500);
   }
 
   function handleWindowResize() {
@@ -3770,6 +3914,7 @@
     tailTip.className = "pig-tail-tip";
 
     button.append(hoverMessages, buttonAura, buttonIconWrap, buttonCopy, buttonStatus, tailTip);
+
     root.append(button, imagePreviewOverlay);
     (document.body || document.documentElement).append(root);
 
@@ -3806,6 +3951,7 @@
     buttonIconWrap.addEventListener("pointermove", onPointerMove);
     buttonIconWrap.addEventListener("pointerup", onPointerUp);
     buttonIconWrap.addEventListener("pointercancel", onPointerUp);
+    buttonIconWrap.addEventListener("dblclick", handlePetButtonDblClick);
     hoverMessages.addEventListener("scroll", handleHoverMessagesScroll, { passive: true });
     hoverMessages.addEventListener("click", handleChatImagePreviewClick);
     hoverMessages.addEventListener("keydown", handleChatImagePreviewKeydown);

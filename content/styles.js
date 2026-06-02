@@ -1897,6 +1897,165 @@
         transform: translate(1.6px, 0) !important;
       }
 
+      .pinch {
+        animation: pig-pinch 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes pig-pinch {
+        0%, 100% {
+          transform: scale(1);
+        }
+
+        20% {
+          transform: scaleY(1.4) scaleX(0.8) translateY(-3px);
+        }
+
+        45% {
+          transform: scaleY(0.85) scaleX(1.12) translateY(1px);
+        }
+
+        65% {
+          transform: scaleY(1.08) scaleX(0.96);
+        }
+
+        80% {
+          transform: scaleY(0.97) scaleX(1.02);
+        }
+      }
+
+      .knock {
+        animation: pig-knock 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes pig-knock {
+        0%, 100% {
+          transform: scale(1);
+        }
+
+        15% {
+          transform: scaleY(0.78) scaleX(1.18);
+        }
+
+        40% {
+          transform: scaleY(1.12) scaleX(0.92);
+        }
+
+        60% {
+          transform: scaleY(0.97) scaleX(1.02);
+        }
+      }
+
+      .dogeclaw-merit-float {
+        position: absolute;
+        pointer-events: none;
+        font-size: 13px;
+        font-weight: 700;
+        color: #ffd54f;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+        white-space: nowrap;
+        animation: merit-float 1.1s ease-out forwards;
+        z-index: 2147483647;
+      }
+
+      @keyframes merit-float {
+        0% {
+          opacity: 1;
+          transform: translateY(0) scale(0.8);
+        }
+
+        25% {
+          opacity: 1;
+          transform: translateY(-12px) scale(1.15);
+        }
+
+        100% {
+          opacity: 0;
+          transform: translateY(-48px) scale(1);
+        }
+      }
+
+      .dogeclaw-whip-effect {
+        position: absolute;
+        pointer-events: none;
+        overflow: visible;
+        z-index: 2147483646;
+      }
+
+      .dogeclaw-whip-line {
+        stroke: #8B4513;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        animation: whip-swing 0.4s ease-out forwards;
+      }
+
+      @keyframes whip-swing {
+        0% {
+          opacity: 0;
+          stroke-dashoffset: 60;
+        }
+
+        20% {
+          opacity: 1;
+          stroke-dashoffset: 0;
+        }
+
+        70% {
+          opacity: 1;
+          stroke-dashoffset: 0;
+        }
+
+        100% {
+          opacity: 0;
+          stroke-dashoffset: 0;
+        }
+      }
+
+      .dogeclaw-knock-effect {
+        position: absolute;
+        pointer-events: none;
+        overflow: visible;
+        z-index: 2147483646;
+      }
+
+      .dogeclaw-knock-stick {
+        stroke: #A0522D;
+        stroke-width: 3;
+        stroke-linecap: round;
+        animation: knock-drop 0.45s ease-in forwards;
+      }
+
+      @keyframes knock-drop {
+        0% {
+          opacity: 0;
+          transform: translateY(-30px);
+        }
+
+        25% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        45% {
+          opacity: 1;
+          transform: translateY(-5px);
+        }
+
+        60% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        80% {
+          opacity: 0.6;
+          transform: translateY(0);
+        }
+
+        100% {
+          opacity: 0;
+          transform: translateY(0);
+        }
+      }
+
       .bubble-pop {
         animation: pig-bubble-pop 1s ease forwards;
       }
