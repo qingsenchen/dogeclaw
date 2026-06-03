@@ -95,6 +95,10 @@
         cursor: grabbing;
       }
 
+      .pig-floating-button.is-flick-mode .pig-icon-wrap {
+        cursor: crosshair;
+      }
+
 	      .pig-floating-button.is-dragging {
 	        width: var(--pig-compact-width);
 	        left: 0;
@@ -1897,6 +1901,50 @@
         transform: translate(1.6px, 0) !important;
       }
 
+      .dogeclaw-flick-hammer {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 44px;
+        height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+        z-index: 2147483646;
+        transform: translate(-34%, -86%) rotate(-8deg) scale(0.9);
+        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+        transition: opacity 140ms ease;
+        will-change: left, top, opacity, transform;
+      }
+
+      .dogeclaw-flick-hammer.is-visible {
+        opacity: 1;
+        animation: dogeclaw-flick-hammer-pop 180ms ease-out;
+      }
+
+      .dogeclaw-flick-hammer svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      @keyframes dogeclaw-flick-hammer-pop {
+        0% {
+          transform: translate(-34%, -86%) rotate(-18deg) scale(0.68);
+        }
+
+        70% {
+          transform: translate(-34%, -86%) rotate(-4deg) scale(1.08);
+        }
+
+        100% {
+          transform: translate(-34%, -86%) rotate(-8deg) scale(0.9);
+        }
+      }
+
       .pinch {
         animation: pig-pinch 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
@@ -1960,17 +2008,17 @@
       @keyframes merit-float {
         0% {
           opacity: 1;
-          transform: translateY(0) scale(0.8);
+          transform: translate(-50%, 0) scale(0.8);
         }
 
         25% {
           opacity: 1;
-          transform: translateY(-12px) scale(1.15);
+          transform: translate(-50%, -12px) scale(1.15);
         }
 
         100% {
           opacity: 0;
-          transform: translateY(-48px) scale(1);
+          transform: translate(-50%, -48px) scale(1);
         }
       }
 
