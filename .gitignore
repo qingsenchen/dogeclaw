@@ -25,3 +25,4 @@ tests/snapshot-compact-smoke*
 web-ext-artifacts/
 *.zip
 *.crx
+/.claude
