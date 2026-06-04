@@ -19,6 +19,8 @@
   const FLOATING_BUTTON_EDGE_PADDING = 8;
   const CHAT_MESSAGES_BUTTON_GAP = 10;
   const DRAG_START_THRESHOLD = 4;
+  const FLICK_MODE_HOLD_MS = 2000;
+  const FLICK_MODE_TRIGGER_DISTANCE = 24;
   const LLM_CONFIG_TIP_ID = "dogeclaw-llm-config-tip";
   const IMAGE_LIMIT_TIP_ID = "dogeclaw-image-limit-tip";
   const TRANSIENT_TIP_DISMISS_MS = CONTENT_CONFIG.transientTipDismissMs || 10000;
@@ -99,6 +101,8 @@
       window.clearTimeout(tabHistorySaveTimer);
       window.clearTimeout(state.chatHideTimer);
       window.clearTimeout(state.chatCollapseTimer);
+      window.clearTimeout(state.drag.holdTimer);
+      window.clearTimeout(state.dblClickTimer);
       window.clearTimeout(state.navigationResetTimer);
       window.clearTimeout(state.imagePreview.pointerHandledTimer);
       window.clearTimeout(state.inputImageDrag.resetTimer);
@@ -171,10 +175,14 @@
       active: false,
       moved: false,
       flicked: false,
+      flickMode: false,
+      holdTimer: 0,
       pointerId: null,
       startTime: 0,
       startX: 0,
       startY: 0,
+      currentX: 0,
+      currentY: 0,
       startLeft: 0,
       startTop: 0
     },
@@ -952,12 +960,8 @@
   }
 
   async function handlePetButtonClick(event) {
-    if (state.drag.moved) {
+    if (state.drag.moved || state.drag.flicked) {
       state.drag.moved = false;
-      return;
-    }
-
-    if (state.drag.flicked) {
       state.drag.flicked = false;
       return;
     }
@@ -1008,11 +1012,12 @@
     if (!rect) {
       return;
     }
+    const rootRect = elements.root.getBoundingClientRect();
     const meritEl = document.createElement("div");
     meritEl.className = "dogeclaw-merit-float";
     meritEl.textContent = t("interaction.merit");
-    meritEl.style.left = (rect.left + rect.width / 2 - 30) + "px";
-    meritEl.style.top = (rect.top - 10) + "px";
+    meritEl.style.left = (rect.left - rootRect.left + rect.width / 2) + "px";
+    meritEl.style.top = (rect.top - rootRect.top - 10) + "px";
     elements.root.append(meritEl);
     window.setTimeout(() => {
       meritEl.remove();
@@ -3371,6 +3376,66 @@
 	    await sendTextToDogeclaw(value, images);
 	  }
 
+  function clearFlickHoldTimer() {
+    if (state.drag.holdTimer) {
+      window.clearTimeout(state.drag.holdTimer);
+      state.drag.holdTimer = 0;
+    }
+  }
+
+  function scheduleFlickModeHold() {
+    clearFlickHoldTimer();
+    state.drag.holdTimer = window.setTimeout(() => {
+      state.drag.holdTimer = 0;
+      if (!isCurrentInstance() || !state.drag.active || state.drag.moved || state.drag.flickMode) {
+        return;
+      }
+      enterFlickMode(state.drag.currentX || state.drag.startX, state.drag.currentY || state.drag.startY);
+    }, FLICK_MODE_HOLD_MS);
+  }
+
+  function enterFlickMode(clientX, clientY) {
+    state.drag.flickMode = true;
+    state.drag.flicked = true;
+    elements.button.classList.add("is-flick-mode");
+    hideChatImmediatelyForDrag();
+    updateFlickHammer(clientX, clientY);
+  }
+
+  function exitFlickMode() {
+    state.drag.flickMode = false;
+    elements.button?.classList.remove("is-flick-mode");
+    if (elements.flickHammer) {
+      elements.flickHammer.classList.remove("is-visible");
+      elements.flickHammer.hidden = true;
+    }
+  }
+
+  function updateFlickHammer(clientX, clientY) {
+    if (!elements.root || !elements.flickHammer) {
+      return;
+    }
+    const rootRect = elements.root.getBoundingClientRect();
+    elements.flickHammer.hidden = false;
+    elements.flickHammer.style.left = (clientX - rootRect.left) + "px";
+    elements.flickHammer.style.top = (clientY - rootRect.top) + "px";
+    elements.flickHammer.classList.add("is-visible");
+  }
+
+  function getFlickDirection(deltaX, deltaY) {
+    const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+    if (angle < -45 && angle > -135) {
+      return "up";
+    }
+    if (angle >= -45 && angle < 45) {
+      return "right";
+    }
+    if (angle >= 45 && angle < 135) {
+      return "down";
+    }
+    return "left";
+  }
+
   function onPointerDown(event) {
     if (event.target?.closest?.(".pig-hover-input")) {
       return;
@@ -3383,13 +3448,17 @@
     state.drag.active = true;
     state.drag.moved = false;
     state.drag.flicked = false;
+    state.drag.flickMode = false;
     state.drag.pointerId = event.pointerId;
     state.drag.startTime = Date.now();
     state.drag.startX = event.clientX;
     state.drag.startY = event.clientY;
+    state.drag.currentX = event.clientX;
+    state.drag.currentY = event.clientY;
     const visualRect = getButtonVisualRect();
     state.drag.startLeft = visualRect.left;
     state.drag.startTop = visualRect.top;
+    scheduleFlickModeHold();
     event.currentTarget?.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   }
@@ -3401,8 +3470,17 @@
 
     const deltaX = event.clientX - state.drag.startX;
     const deltaY = event.clientY - state.drag.startY;
+    state.drag.currentX = event.clientX;
+    state.drag.currentY = event.clientY;
+
+    if (state.drag.flickMode) {
+      updateFlickHammer(event.clientX, event.clientY);
+      event.preventDefault();
+      return;
+    }
 
     if (!state.drag.moved && (Math.abs(deltaX) > DRAG_START_THRESHOLD || Math.abs(deltaY) > DRAG_START_THRESHOLD)) {
+      clearFlickHoldTimer();
       state.drag.moved = true;
       elements.root.style.left = `${state.drag.startLeft}px`;
       elements.root.style.top = `${state.drag.startTop}px`;
@@ -3431,29 +3509,22 @@
 
     const persistedLeft = Number.parseFloat(elements.root.style.left);
     const persistedTop = Number.parseFloat(elements.root.style.top);
-    state.drag.active = false;
-    event.currentTarget?.releasePointerCapture?.(event.pointerId);
-    elements.button.classList.remove("is-dragging");
-
-    const duration = Date.now() - state.drag.startTime;
     const dx = event.clientX - state.drag.startX;
     const dy = event.clientY - state.drag.startY;
     const distance = Math.sqrt(dx * dx + dy * dy);
+    const wasFlickMode = state.drag.flickMode;
+    clearFlickHoldTimer();
+    state.drag.active = false;
+    state.drag.pointerId = null;
+    event.currentTarget?.releasePointerCapture?.(event.pointerId);
+    elements.button.classList.remove("is-dragging");
 
-    if (duration < 280 && distance > 18) {
+    if (wasFlickMode) {
       state.drag.flicked = true;
-      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-      let direction;
-      if (angle < -45 && angle > -135) {
-        direction = "up";
-      } else if (angle >= -45 && angle < 45) {
-        direction = "right";
-      } else if (angle >= 45 && angle < 135) {
-        direction = "down";
-      } else {
-        direction = "left";
+      exitFlickMode();
+      if (distance >= FLICK_MODE_TRIGGER_DISTANCE) {
+        handleFlickGesture(getFlickDirection(dx, dy));
       }
-      handleFlickGesture(direction);
       return;
     }
 
@@ -3789,6 +3860,24 @@
     bubbleLayer.append(...Object.values(buttonBubbles));
     buttonIconWrap.append(buttonMascot, bubbleLayer);
 
+    const flickHammer = document.createElement("span");
+    flickHammer.className = "dogeclaw-flick-hammer";
+    flickHammer.hidden = true;
+    flickHammer.setAttribute("aria-hidden", "true");
+    const flickHammerSvg = svgElement("svg", {
+      viewBox: "0 0 48 48",
+      "aria-hidden": "true"
+    });
+    const flickHammerGroup = svgElement("g", { transform: "rotate(-32 24 24)" });
+    flickHammerGroup.append(
+      svgElement("rect", { x: 13, y: 10, width: 24, height: 12, rx: 2, fill: "#dbe4ee", stroke: "#5f6f82", "stroke-width": "2" }),
+      svgElement("rect", { x: 18, y: 22, width: 7, height: 22, rx: 2, fill: "#b96b36", stroke: "#6f3d1e", "stroke-width": "2" }),
+      svgElement("rect", { x: 10, y: 13, width: 6, height: 6, rx: 1, fill: "#f8fafc", stroke: "#5f6f82", "stroke-width": "2" }),
+      svgElement("rect", { x: 34, y: 13, width: 6, height: 6, rx: 1, fill: "#aebccc", stroke: "#5f6f82", "stroke-width": "2" })
+    );
+    flickHammerSvg.append(flickHammerGroup);
+    flickHammer.append(flickHammerSvg);
+
 	    const buttonCopy = document.createElement("span");
 	    buttonCopy.className = "pig-button-copy";
 
@@ -3915,7 +4004,7 @@
 
     button.append(hoverMessages, buttonAura, buttonIconWrap, buttonCopy, buttonStatus, tailTip);
 
-    root.append(button, imagePreviewOverlay);
+    root.append(button, flickHammer, imagePreviewOverlay);
     (document.body || document.documentElement).append(root);
 
     buttonIconWrap.addEventListener("click", handlePetButtonClick);
@@ -4003,6 +4092,7 @@
       imagePreviewDialog,
       imagePreviewImage,
       imagePreviewClose,
+      flickHammer,
       buttonPupils: [leftPupil, rightPupil],
       buttonEyes: [leftEye, rightEye],
       buttonNose: nose,
