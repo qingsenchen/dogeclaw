@@ -37,13 +37,21 @@
     NEW: "new",
     MODEL: "model",
     SKILLS: "skills",
-    TASKS: "tasks"
+    TASKS: "tasks",
+    GAME: "game"
   };
   const t = (key, params) => (globalThis.DogeclawI18n?.t ? globalThis.DogeclawI18n.t(key, params) : key);
+  const GAME = globalThis.DogeclawGame;
   const INSTANCE_KEY = "__dogeclawContentInstance";
   const instanceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   const cleanupCallbacks = [];
   let instanceActive = true;
+  let elements;
+  let gameController = null;
+
+  if (!GAME?.createInitialState || !GAME?.createController) {
+    throw new Error("Dogeclaw game unavailable");
+  }
 
   const existingInstance = globalThis[INSTANCE_KEY];
   if (existingInstance?.active && typeof existingInstance.ensureMounted === "function") {
@@ -103,6 +111,7 @@
       window.clearTimeout(state.imagePreview.pointerHandledTimer);
       window.clearTimeout(state.inputImageDrag.resetTimer);
       window.clearTimeout(state.channelConfig.autoCheckTimer);
+      stopGameLoop();
       hoverTipDismissTimers.forEach((timerId) => window.clearTimeout(timerId));
       hoverTipDismissTimers.clear();
     } catch {}
@@ -246,6 +255,7 @@
       error: "",
       tasks: []
     },
+    game: GAME.createInitialState(),
     thinkingActive: false,
     contextUsage: {
       usage: null,
@@ -305,6 +315,11 @@
         id: SLASH_COMMAND_IDS.TASKS,
         name: "/tasks",
         description: t("command.tasks.description")
+      },
+      {
+        id: SLASH_COMMAND_IDS.GAME,
+        name: "/game",
+        description: t("command.game.description")
       }
     ];
   }
@@ -313,6 +328,81 @@
     const query = String(state.commandMenu.query || "").toLowerCase();
     return getSlashCommands().filter((command) => command.name.slice(1).startsWith(query));
   }
+
+  function requireGameController() {
+    if (!gameController) {
+      throw new Error("Dogeclaw game controller unavailable");
+    }
+    return gameController;
+  }
+
+  function stopGameLoop() {
+    gameController?.stopLoop?.();
+  }
+
+  function resetGame() {
+    requireGameController().reset();
+  }
+
+  function openGamePanel() {
+    requireGameController().open();
+  }
+
+  function closeGamePanel(options = {}) {
+    return gameController?.close?.(options) || false;
+  }
+
+  function startGameLoop() {
+    gameController?.startLoop?.();
+  }
+
+  function jumpGameRunner() {
+    return gameController?.jump?.() || false;
+  }
+
+  function updateGamePanelBounds() {
+    gameController?.updatePanelBounds?.();
+  }
+
+  function renderGamePanel(options = {}) {
+    gameController?.renderPanel?.(options);
+  }
+
+  function handleGameKeydown(event) {
+    return gameController?.handleKeydown?.(event) || false;
+  }
+
+  function handleGameKeyup(event) {
+    return gameController?.handleKeyup?.(event) || false;
+  }
+
+  function handleGameKeypress(event) {
+    return gameController?.handleKeypress?.(event) || false;
+  }
+
+  function handleGameInputBeforeInput(event) {
+    return gameController?.handleInputBeforeInput?.(event) || false;
+  }
+
+  function handleGameInputTextFallback(event) {
+    return gameController?.handleInputTextFallback?.(event) || false;
+  }
+
+  gameController = GAME.createController({
+    addManagedEventListener,
+    closeConfigPanel,
+    floatingButtonCompactWidth: FLOATING_BUTTON_COMPACT_WIDTH,
+    floatingButtonEdgePadding: FLOATING_BUTTON_EDGE_PADDING,
+    getElements: () => elements,
+    renderHoverMessages,
+    restoreChatRecordsAfterConfig,
+    scheduleSync,
+    scheduleTabConversationPersist,
+    state,
+    stopChannelAutoCheck,
+    t,
+    updateButtonExpansionSide
+  });
 
   const browserActions = globalThis.DogeclawContentBrowserActions?.createController?.();
   if (!browserActions) {
@@ -484,7 +574,6 @@
     });
   }
 
-  let elements;
   elements = createUI();
   anchorRootToCurrentPosition();
   const petController = window.DogeclawPet.createController({
@@ -656,6 +745,7 @@
     state.floatingEnabled = enabled !== false;
 
     if (!state.floatingEnabled) {
+      closeGamePanel({ restoreChat: false });
       setChatVisible(false);
       elements.root.hidden = true;
       return;
@@ -842,7 +932,7 @@
     setNativeTooltip(elements.button, dragTitle);
     setNativeTooltip(elements.buttonIconWrap, dragTitle);
     setButtonStatusTooltip(statusTitle);
-    elements.button.classList.toggle("is-open", false);
+    elements.button.classList.toggle("is-open", state.game.visible);
 	    elements.button.classList.toggle("is-dragging", state.drag.active && state.drag.moved);
 	    elements.button.classList.toggle("is-thinking", state.thinkingActive);
     elements.button.classList.toggle("is-stoppable", canStop);
@@ -861,13 +951,16 @@
       elements.buttonStatus.removeAttribute("data-tooltip");
     }
     renderInputImageDragState();
+    if (state.game.visible) {
+      renderGamePanel({ draw: false });
+    }
 	    if (!elements.hoverMessages.hidden) {
       updateHoverMessagesBounds();
     }
     petController.sync({
       count: 0,
       isScanning: false,
-      isOpen: false,
+      isOpen: state.game.visible,
       isDragging: state.drag.active
     });
   }
@@ -950,6 +1043,11 @@
   async function handlePetButtonClick(event) {
     if (state.drag.moved) {
       state.drag.moved = false;
+      return;
+    }
+
+    if (state.game.visible) {
+      closeGamePanel();
       return;
     }
 
@@ -1173,6 +1271,10 @@
   }
 
   function hideChatIfCollapsed(event) {
+    if (state.game.visible) {
+      return;
+    }
+
     if (state.imagePreview.visible) {
       return;
     }
@@ -1221,6 +1323,7 @@
   }
 
   function openConfigPanel(panel) {
+    closeGamePanel({ restoreChat: false });
     setActiveConfigPanel(panel);
     state.chatVisible = true;
     state.chatHoldExpanded = true;
@@ -1710,6 +1813,7 @@
     hoverTipDismissTimers.forEach((timerId) => window.clearTimeout(timerId));
     hoverTipDismissTimers.clear();
     stopChannelAutoCheck();
+    closeGamePanel({ restoreChat: false });
     closeConfigPanel();
     state.hoverMessages = [];
     state.inputImages = [];
@@ -1751,6 +1855,11 @@
 
     if (commandId === SLASH_COMMAND_IDS.TASKS) {
       await showTaskConfigForm();
+      return true;
+    }
+
+    if (commandId === SLASH_COMMAND_IDS.GAME) {
+      openGamePanel();
       return true;
     }
 
@@ -1802,11 +1911,21 @@
   }
 
   function handleHoverInputChange(event) {
+    if (handleGameInputTextFallback(event)) {
+      return;
+    }
+
     resetHoverInputHistoryNavigation();
     updateSlashCommandMenuFromInput(event.currentTarget?.value || "");
   }
 
   function handleHoverInputFocus(event) {
+    if (state.game.visible) {
+      event.currentTarget?.blur?.();
+      window.requestAnimationFrame(() => elements?.gamePanel?.focus?.({ preventScroll: true }));
+      return;
+    }
+
     updateSlashCommandMenuFromInput(event.currentTarget?.value || "");
   }
 
@@ -1914,6 +2033,17 @@
 
   function renderHoverMessages() {
     if (!isCurrentInstance() || !elements?.hoverMessages) {
+      return;
+    }
+
+    if (state.game.visible) {
+      if (state.chatCollapseTimer) {
+        window.clearTimeout(state.chatCollapseTimer);
+        state.chatCollapseTimer = 0;
+      }
+      elements.hoverMessages.replaceChildren();
+      elements.hoverMessages.hidden = true;
+      elements.hoverMessages.classList.remove("is-visible", "is-collapsing", "is-scrollable");
       return;
     }
 
@@ -3288,6 +3418,10 @@
 	  }
 
   async function handleHoverInputKeydown(event) {
+    if (state.game.visible && handleGameKeydown(event)) {
+      return;
+    }
+
     if (handleSlashCommandKeydown(event)) {
       return;
     }
@@ -3408,6 +3542,7 @@
   function handleWindowResize() {
     updateButtonExpansionSide();
     updateHoverMessagesBounds();
+    updateGamePanelBounds();
 
     const rect = elements.root.getBoundingClientRect();
     const next = clampPosition(rect.left, rect.top);
@@ -3724,6 +3859,16 @@
     hoverMessages.hidden = true;
     hoverMessages.title = "";
 
+    const gameElements = requireGameController().createElements(svgElement);
+    const {
+      gamePanel,
+      gameCanvas,
+      gameScoreValue,
+      gameBestValue,
+      gameRestartButton,
+      gameCloseButton
+    } = gameElements;
+
     const imagePreviewOverlay = document.createElement("div");
     imagePreviewOverlay.className = "pig-image-preview-overlay";
     imagePreviewOverlay.hidden = true;
@@ -3769,7 +3914,7 @@
     const tailTip = document.createElement("span");
     tailTip.className = "pig-tail-tip";
 
-    button.append(hoverMessages, buttonAura, buttonIconWrap, buttonCopy, buttonStatus, tailTip);
+    button.append(gamePanel, hoverMessages, buttonAura, buttonIconWrap, buttonCopy, buttonStatus, tailTip);
     root.append(button, imagePreviewOverlay);
     (document.body || document.documentElement).append(root);
 
@@ -3782,14 +3927,23 @@
     });
     button.addEventListener("pointerenter", () => {
       updateButtonExpansionSide();
+      if (state.game.visible) {
+        return;
+      }
       setChatVisible(true);
     });
     button.addEventListener("pointerleave", hideChatIfCollapsed);
     button.addEventListener("focusin", () => {
       updateButtonExpansionSide();
+      if (state.game.visible) {
+        return;
+      }
       setChatVisible(true);
     });
     button.addEventListener("focusout", hideChatIfCollapsed);
+    button.addEventListener("keydown", handleGameKeydown, true);
+    button.addEventListener("keypress", handleGameKeypress, true);
+    button.addEventListener("keyup", handleGameKeyup, true);
     buttonStatus.addEventListener("pointerdown", (event) => {
       if (state.thinkingActive && activeReplyStop) {
         event.preventDefault();
@@ -3809,6 +3963,7 @@
     hoverMessages.addEventListener("scroll", handleHoverMessagesScroll, { passive: true });
     hoverMessages.addEventListener("click", handleChatImagePreviewClick);
     hoverMessages.addEventListener("keydown", handleChatImagePreviewKeydown);
+    requireGameController().bindElementEvents(gameElements);
     imagePreviewOverlay.addEventListener("click", handleImagePreviewOverlayClick);
     imagePreviewClose.addEventListener("click", handleImagePreviewCloseClick);
     inputImageButton.addEventListener("click", (event) => {
@@ -3826,8 +3981,12 @@
       clearInputImages();
       window.requestAnimationFrame(() => elements.buttonHoverInput?.focus?.());
 	    });
+    buttonHoverInput.addEventListener("beforeinput", handleGameInputBeforeInput, true);
 	    buttonHoverInput.addEventListener("input", handleHoverInputChange);
 	    buttonHoverInput.addEventListener("focus", handleHoverInputFocus);
+    buttonHoverInput.addEventListener("keydown", handleGameKeydown, true);
+    buttonHoverInput.addEventListener("keypress", handleGameKeypress, true);
+    buttonHoverInput.addEventListener("keyup", handleGameKeyup, true);
 	    buttonHoverInput.addEventListener("keydown", handleHoverInputKeydown);
     addManagedEventListener(document, "dragenter", handleDocumentImageDragEnter, true);
     addManagedEventListener(document, "dragstart", handleDocumentImageDragStart, true);
@@ -3853,6 +4012,12 @@
       inputImagePreview,
       inputImageRemove,
       hoverMessages,
+      gamePanel,
+      gameCanvas,
+      gameScoreValue,
+      gameBestValue,
+      gameRestartButton,
+      gameCloseButton,
       imagePreviewOverlay,
       imagePreviewDialog,
       imagePreviewImage,
@@ -3881,7 +4046,7 @@
         return;
       }
       ensureUiMounted();
-      if (state.chatVisible || state.thinkingActive || state.llmConfig.visible || state.skillConfig.visible || state.taskConfig.visible || state.channelConfig.visible) {
+      if (state.chatVisible || state.thinkingActive || state.llmConfig.visible || state.skillConfig.visible || state.taskConfig.visible || state.channelConfig.visible || state.game.visible) {
         syncUI();
       }
     }, MOUNT_WATCHDOG_INTERVAL);

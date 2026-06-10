@@ -359,6 +359,141 @@
         overflow-wrap: anywhere;
       }
 
+      .pig-game-panel {
+        position: absolute;
+        left: var(--pig-game-left, 0px);
+        bottom: calc(100% - 1px);
+        z-index: 7;
+        display: grid;
+        gap: 0;
+        width: var(--pig-game-width, 360px);
+        max-width: calc(100vw - 16px);
+        border: 0;
+        border-radius: 0;
+        padding: 0;
+        color: #f8fafc;
+        background: transparent;
+        box-shadow: none;
+        cursor: default;
+        pointer-events: auto;
+        user-select: none;
+      }
+
+      .pig-game-panel:focus-visible {
+        outline: 0;
+      }
+
+      .pig-game-header {
+        display: none;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 8px;
+        min-height: 26px;
+      }
+
+      .pig-game-title {
+        min-width: 0;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .pig-game-hud {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .pig-game-stat {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        min-width: 0;
+        color: rgba(248, 250, 252, 0.88);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .pig-game-stat-label {
+        color: rgba(203, 213, 225, 0.86);
+        font-size: 9px;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .pig-game-stat-value {
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .pig-game-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 0 auto;
+      }
+
+      .pig-game-icon-button {
+        all: unset;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        color: rgba(248, 250, 252, 0.86);
+        background: rgba(255, 255, 255, 0.06);
+        cursor: pointer;
+      }
+
+      .pig-game-icon-button:hover,
+      .pig-game-icon-button:focus-visible {
+        color: #ffffff;
+        background: rgba(96, 165, 250, 0.22);
+      }
+
+      .pig-game-icon-button svg {
+        width: 15px;
+        height: 15px;
+        display: block;
+      }
+
+      .pig-game-canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 12 / 5;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        image-rendering: auto;
+      }
+
+      @media (max-width: 340px) {
+        .pig-game-header {
+          grid-template-columns: minmax(0, 1fr) auto;
+        }
+
+        .pig-game-title {
+          display: none;
+        }
+
+        .pig-game-hud {
+          justify-self: start;
+        }
+      }
+
       .pig-chat-row {
         display: flex;
         flex: 0 0 auto;
