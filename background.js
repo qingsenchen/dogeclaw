@@ -21,6 +21,7 @@ const CONTENT_SCRIPT_FILES = CONTENT_CONFIG.scriptFiles || [
   "ui.js",
   "content/styles.js",
   "content/browser-actions.js",
+  "content/game.js",
   "content/index.js"
 ];
 const CHANNEL_ALARM_PERIOD_MINUTES = CHANNEL_CONFIG.alarmPeriodMinutes || 0.5;

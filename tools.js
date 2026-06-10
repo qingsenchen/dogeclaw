@@ -11,6 +11,7 @@
     "ui.js",
     "content/styles.js",
     "content/browser-actions.js",
+    "content/game.js",
     "content/index.js"
   ];
 
